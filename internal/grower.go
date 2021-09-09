@@ -11,14 +11,19 @@ import (
 const shutdownWaitDuration = time.Second * 5
 
 type Grower struct {
-	ctx      context.Context
-	shutdown chan struct{}
-	wg       sync.WaitGroup
-	storage  storage.Storage
+	ctx         context.Context
+	shutdown    chan struct{}
+	wg          sync.WaitGroup
+	storage     storage.Storage
+	listeners   []*Listener
+	messagePool map[_const.Topic]chan _const.Message
 }
 
 func NewGrower(ctx context.Context, _storage storage.Storage) *Grower {
-	grower := &Grower{ctx: ctx, wg: sync.WaitGroup{}, storage: _storage}
+	grower := &Grower{
+		ctx: ctx, wg: sync.WaitGroup{}, storage: _storage, shutdown: make(chan struct{}),
+		messagePool: map[_const.Topic]chan _const.Message{},
+	}
 	return grower
 }
 
@@ -32,6 +37,10 @@ func (g *Grower) await() error {
 }
 
 func (g *Grower) down() error {
+	for _, listener := range g.listeners {
+		listener.stop()
+	}
+
 	go func() {
 		// wait all async processes
 		g.wg.Wait()

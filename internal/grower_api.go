@@ -14,5 +14,19 @@ func (g *Grower) CreateTopic(topic _const.Topic, partitions _const.Partition) er
 		partitions = 1
 	}
 
-	return g.storage.NewTopic(topic, partitions)
+	if err := g.storage.NewTopic(topic, partitions); err != nil {
+		return err
+	}
+
+	g.messagePool[topic] = make(chan _const.Message)
+
+	g.listeners = append(g.listeners, NewListener(
+		g.storage, g.messagePool[topic], topic, partitions),
+	)
+
+	return nil
+}
+
+func (g *Grower) Write(topic _const.Topic, message _const.Message) {
+	g.messagePool[topic] <- message
 }
