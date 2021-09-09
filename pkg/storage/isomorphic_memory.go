@@ -38,7 +38,7 @@ func NewIsomorphicMemoryStorage(ctx context.Context,
 		reader: map[_const.Topic]map[_const.Partition]*os.File{},
 	}
 
-	if len(wCb) <= 0 {
+	if len(wCb) == 0 {
 		is.createWriterCallback = func(topic _const.Topic, partition _const.Partition) (*os.File, error) {
 			dir, err := os.Getwd()
 
@@ -137,7 +137,7 @@ func (is *IsomorphicMemoryStorage) clean(topic _const.Topic) {
 
 func (is *IsomorphicMemoryStorage) flush(topic _const.Topic, partition _const.Partition, w *bufio.Writer) {
 	is.mu.Lock()
-	data := strings.Join(is.memory[topic][partition][:], "\n")
+	data := strings.Join(is.memory[topic][partition], "\n")
 	is.memory[topic][partition] = is.memory[topic][partition][:0]
 	is.mu.Unlock()
 
