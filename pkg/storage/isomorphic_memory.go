@@ -126,7 +126,6 @@ func (is *IsomorphicMemoryStorage) gc(ctx context.Context, topic _const.Topic, w
 
 	ticker := time.NewTicker(flushInterval)
 
-	defer fmt.Printf("stop isomorphic GC for topic %s\n", topic)
 	defer func() {
 		is.flush(topic, w)
 		is.cl(topic)
@@ -134,6 +133,8 @@ func (is *IsomorphicMemoryStorage) gc(ctx context.Context, topic _const.Topic, w
 		_ = writer.Close()
 
 		is.wg.Done()
+
+		fmt.Printf("stop isomorphic GC for topic %s\n", topic)
 	}()
 
 	for {
