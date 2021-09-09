@@ -33,7 +33,7 @@ func NewIsomorphicMemoryStorage(ctx context.Context,
 	ctx, cancel := context.WithCancel(ctx)
 
 	is := &IsomorphicMemoryStorage{
-		ctx: ctx, cancel: cancel, wg: sync.WaitGroup{},
+		ctx: ctx, cancel: cancel, wg: sync.WaitGroup{}, mu: sync.RWMutex{},
 		memory: map[_const.Topic]map[_const.Partition][]_const.Message{},
 		reader: map[_const.Topic]map[_const.Partition]*os.File{},
 	}
@@ -101,8 +101,10 @@ func (is *IsomorphicMemoryStorage) NewTopic(topic _const.Topic, partitions ...in
 		parts = partitions[0]
 	}
 
+	is.mu.Lock()
 	is.memory[topic] = map[_const.Partition][]_const.Message{}
 	is.reader[topic] = map[_const.Partition]*os.File{}
+	is.mu.Unlock()
 
 	// Инициализуруем ресурсы: хранилище в памяти, а также объекты данных (файлы), разделенные по партициям
 	for partition := 1; partition <= parts; partition++ {
@@ -114,8 +116,10 @@ func (is *IsomorphicMemoryStorage) NewTopic(topic _const.Topic, partitions ...in
 
 		is.wg.Add(1)
 
+		is.mu.Lock()
 		is.memory[topic][partition] = []_const.Message{}
 		is.reader[topic][partition] = readWrite
+		is.mu.Unlock()
 
 		go is.gc(is.ctx, topic, partition)
 	}

@@ -26,7 +26,11 @@ func TestNewIsomorphicMemoryStorage(t *testing.T) {
 
 			<-time.After(1100 * time.Millisecond)
 
-			if len(is.memory["rainbow"][1]) != 0 || len(is.memory["rainbow"][2]) != 0 {
+			is.mu.RLock()
+			status := len(is.memory["rainbow"][1]) != 0 || len(is.memory["rainbow"][2]) != 0
+			is.mu.RUnlock()
+
+			if status {
 				t.Fatal("Failed, expect empty partitions")
 			}
 
@@ -60,7 +64,11 @@ func TestNewIsomorphicMemoryStorage(t *testing.T) {
 
 			_ = is.Close()
 
-			if len(is.memory["rainbow"][1]) != 0 || len(is.memory["rainbow"][2]) != 0 {
+			is.mu.RLock()
+			status = len(is.memory["rainbow"][1]) != 0 || len(is.memory["rainbow"][2]) != 0
+			is.mu.RUnlock()
+
+			if status {
 				t.Fatal("Failed, expect empty partitions")
 			}
 		})
