@@ -9,3 +9,4 @@ var ErrorShutdownWithoutGracefulCompletion = errors.New("shutdown completed with
 type Topic = string
 type Partition = int
 type Message = string
+type Group = string

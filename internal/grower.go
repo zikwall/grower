@@ -37,6 +37,7 @@ func (g *Grower) await() error {
 }
 
 func (g *Grower) down() error {
+	// Ждем завершения всех слушателей топиков
 	for _, listener := range g.listeners {
 		listener.stop()
 	}

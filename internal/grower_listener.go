@@ -3,41 +3,54 @@ package internal
 import (
 	_const "github.com/zikwall/grower/pkg/const"
 	"github.com/zikwall/grower/pkg/storage"
-	"sync"
+	"sync/atomic"
 )
 
 type Listener struct {
-	done    chan struct{}
-	storage storage.Storage
-	wg      sync.WaitGroup
+	done        chan struct{}
+	storage     storage.Storage
+	writePolicy WritePolicy
+}
+
+type WritePolicy interface {
+	Partition() int
+}
+
+type RoundRobinWritePolicy struct {
+	partitions int
+	next       uint32
+}
+
+func (rr *RoundRobinWritePolicy) Partition() int {
+	return (int(atomic.AddUint32(&rr.next, 1)) - 1) % rr.partitions
 }
 
 func NewListener(
 	s storage.Storage, channel <-chan _const.Message, topic _const.Topic, partitions _const.Partition,
 ) *Listener {
-	ln := &Listener{storage: s, done: make(chan struct{}), wg: sync.WaitGroup{}}
-
-	for i := partitions; i <= partitions; i++ {
-		ln.wg.Add(1)
-		go ln.listen(topic, i, channel)
+	parts := 0
+	for i := 0; i <= partitions; i++ {
+		parts++
 	}
+
+	ln := &Listener{storage: s, done: make(chan struct{}), writePolicy: &RoundRobinWritePolicy{partitions: parts}}
+
+	go ln.listen(topic, channel)
 
 	return ln
 }
 
 func (ln *Listener) stop() {
 	close(ln.done)
-	ln.wg.Wait()
 }
 
-func (ln *Listener) listen(topic _const.Topic, partition _const.Partition, messages <-chan _const.Message) {
-	defer ln.wg.Done()
-
+func (ln *Listener) listen(topic _const.Topic, messages <-chan _const.Message) {
 	for {
 		select {
 		case <-ln.done:
 			return
 		case message := <-messages:
+			partition := ln.writePolicy.Partition()
 			ln.storage.Write(topic, partition, message)
 		}
 	}
