@@ -26,7 +26,7 @@ func NewListener(
 }
 
 func (ln *Listener) stop() {
-	ln.done <- struct{}{}
+	close(ln.done)
 	ln.wg.Wait()
 }
 
