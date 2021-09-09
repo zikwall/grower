@@ -1,14 +1,38 @@
 package internal
 
 import (
+	"context"
 	_const "github.com/zikwall/grower/pkg/const"
 	"time"
 )
 
 const reclaimInterval = time.Second * 1
 
-func (g *Grower) Subscribe(topic _const.Topic, group _const.Group, onMessages func(messages ..._const.Message)) {
+const (
+	GetOut = iota
+	GetIn
+)
+
+type Subscriber interface {
+	Subscribe(_const.Topic, _const.Group, func(..._const.Message)) func()
+}
+
+type Change struct {
+	Direction int
+	Topic     _const.Topic
+	Group     _const.Group
+	UUID      int
+}
+
+func (g *Grower) Subscribe(
+	topic _const.Topic, group _const.Group, onMessages func(messages ..._const.Message),
+) func() {
 	ch := make(chan []_const.Message, 10)
+	ctx, cancel := context.WithCancel(g.ctx)
+
+	uuid := g.subscriberCreateUUID()
+	g.subscriberGetIn(topic, group, uuid)
+	defer g.subscriberGetOut(topic, group, uuid)
 
 	go func() {
 		for {
@@ -26,7 +50,7 @@ func (g *Grower) Subscribe(topic _const.Topic, group _const.Group, onMessages fu
 	go func() {
 		for {
 			select {
-			case <-g.ctx.Done():
+			case <-ctx.Done():
 				return
 			case <-ticker.C:
 				// Читаем топик и партиции для определенной группы подписчика
@@ -49,4 +73,9 @@ func (g *Grower) Subscribe(topic _const.Topic, group _const.Group, onMessages fu
 			}
 		}
 	}()
+
+	// return unsubscribe function
+	return func() {
+		cancel()
+	}
 }
