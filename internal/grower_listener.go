@@ -28,8 +28,8 @@ func (rr *RoundRobinWritePolicy) Partition() int {
 func NewListener(
 	s storage.Storage, channel <-chan _const.Message, topic _const.Topic, partitions _const.Partition,
 ) *Listener {
-	parts := 0
-	for i := 0; i <= partitions; i++ {
+	parts := 1
+	for i := 1; i <= partitions; i++ {
 		parts++
 	}
 

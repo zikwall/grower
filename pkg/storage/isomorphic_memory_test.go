@@ -2,10 +2,6 @@ package storage
 
 import (
 	"context"
-	"fmt"
-	_const "github.com/zikwall/grower/pkg/const"
-	"io"
-	"os"
 	"testing"
 	"time"
 )
@@ -15,15 +11,7 @@ func TestNewIsomorphicMemoryStorage(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		dir, err := os.Getwd()
-
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		is := NewIsomorphicMemoryStorage(ctx, func(topic _const.Topic) (io.WriteCloser, error) {
-			return os.Create(fmt.Sprintf("%s/tmp/%s.log", dir, topic))
-		})
+		is := NewIsomorphicMemoryStorage(ctx)
 
 		t.Run("it should be create first topic and write it", func(t *testing.T) {
 			if err := is.NewTopic("rainbow", 2); err != nil {
