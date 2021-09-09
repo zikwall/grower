@@ -3,6 +3,7 @@ package internal
 import (
 	"context"
 	"github.com/zikwall/grower/pkg/const"
+	"github.com/zikwall/grower/pkg/storage"
 	"sync"
 	"time"
 )
@@ -13,10 +14,11 @@ type Grower struct {
 	ctx      context.Context
 	shutdown chan struct{}
 	wg       sync.WaitGroup
+	storage  storage.Storage
 }
 
-func NewGrower(ctx context.Context) *Grower {
-	grower := &Grower{ctx: ctx, wg: sync.WaitGroup{}}
+func NewGrower(ctx context.Context, _storage storage.Storage) *Grower {
+	grower := &Grower{ctx: ctx, wg: sync.WaitGroup{}, storage: _storage}
 	return grower
 }
 
