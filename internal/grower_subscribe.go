@@ -21,7 +21,7 @@ type Change struct {
 	Direction int
 	Topic     _const.Topic
 	Group     _const.Group
-	UUID      int
+	UUID      int64
 }
 
 func (g *Grower) Subscribe(

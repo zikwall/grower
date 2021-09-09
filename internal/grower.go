@@ -2,9 +2,10 @@ package internal
 
 import (
 	"context"
+	"crypto/rand"
 	"github.com/zikwall/grower/pkg/const"
 	"github.com/zikwall/grower/pkg/storage"
-	"math/rand"
+	"math/big"
 	"sync"
 	"time"
 )
@@ -30,7 +31,7 @@ func NewGrower(ctx context.Context, _storage storage.Storage) *Grower {
 	return grower
 }
 
-func (g *Grower) subscriberGetOut(topic _const.Topic, group _const.Group, uuid int) {
+func (g *Grower) subscriberGetOut(topic _const.Topic, group _const.Group, uuid int64) {
 	g.subscriberChanges <- Change{
 		Direction: GetOut,
 		Topic:     topic,
@@ -39,7 +40,7 @@ func (g *Grower) subscriberGetOut(topic _const.Topic, group _const.Group, uuid i
 	}
 }
 
-func (g *Grower) subscriberGetIn(topic _const.Topic, group _const.Group, uuid int) {
+func (g *Grower) subscriberGetIn(topic _const.Topic, group _const.Group, uuid int64) {
 	g.subscriberChanges <- Change{
 		Direction: GetIn,
 		Topic:     topic,
@@ -48,8 +49,10 @@ func (g *Grower) subscriberGetIn(topic _const.Topic, group _const.Group, uuid in
 	}
 }
 
-func (g *Grower) subscriberCreateUUID() int {
-	return rand.Intn(1000000000-1) + 1
+func (g *Grower) subscriberCreateUUID() int64 {
+	n, _ := rand.Int(rand.Reader, big.NewInt(1000000000-1))
+
+	return n.Int64() + 1
 }
 
 func (g *Grower) await() error {
