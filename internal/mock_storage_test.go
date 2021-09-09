@@ -15,6 +15,10 @@ func (mc MockStorage) NewTopic(_ _const.Topic, _ ...int) error {
 	return nil
 }
 
+func (mc MockStorage) Read(_ _const.Topic, _ _const.Partition, _, _ int64) ([]_const.Message, error) {
+	return nil, nil
+}
+
 func (mc MockStorage) Close() error {
 	return nil
 }

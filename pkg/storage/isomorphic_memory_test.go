@@ -18,17 +18,39 @@ func TestNewIsomorphicMemoryStorage(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			is.Write("rainbow", 1, "Its first message")
+			is.Write("rainbow", 2, "Its first message")
 			is.Write("rainbow", 1, "Its second message")
 			is.Write("rainbow", 2, "Its third message")
-			is.Write("rainbow", 2, "Its four message")
-			is.Write("rainbow", 1, "Its five message")
+			is.Write("rainbow", 1, "Its four message")
+			is.Write("rainbow", 2, "Its five message")
 
 			<-time.After(1100 * time.Millisecond)
 
 			if len(is.memory["rainbow"][1]) != 0 || len(is.memory["rainbow"][2]) != 0 {
 				t.Fatal("Failed, expect empty partitions")
 			}
+
+			t.Run("it should be successful read from storage", func(t *testing.T) {
+				messages, err := is.Read("rainbow", 2, 0, 3)
+
+				if err != nil {
+					t.Fatal(err)
+				}
+
+				if len(messages) != 3 {
+					t.Fatalf("Failed, expect 2 items, give %d", len(messages))
+				}
+
+				messages, err = is.Read("rainbow", 1, 0, 1)
+
+				if err != nil {
+					t.Fatal(err)
+				}
+
+				if len(messages) != 1 {
+					t.Fatalf("Failed, expect 2 items, give %d", len(messages))
+				}
+			})
 
 			is.Write("rainbow", 2, "Another first message")
 			is.Write("rainbow", 2, "Another second message")

@@ -5,7 +5,7 @@ import (
 	"os"
 )
 
-func Read(file *os.File, from, to int) ([]string, error) {
+func Read(file *os.File, from, to int64) ([]string, error) {
 	// ioutil.TempFile creates a temp file and opens the file for reading and writing
 	// and returns the resulting *os.File (file descriptor).
 	// So when you're writing inside the file, the pointer is moved to that offset, i.e.,
@@ -17,7 +17,7 @@ func Read(file *os.File, from, to int) ([]string, error) {
 	}
 
 	scanner := bufio.NewScanner(file)
-	n := 0
+	var n int64
 	var buf []string
 
 	for scanner.Scan() {

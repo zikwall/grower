@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	_const "github.com/zikwall/grower/pkg/const"
+	"github.com/zikwall/grower/pkg/storage/file"
 	"os"
 	"strings"
 	"sync"
@@ -45,19 +46,35 @@ func NewIsomorphicMemoryStorage(ctx context.Context,
 				return nil, err
 			}
 
-			file, err := os.Create(fmt.Sprintf("%s/tmp/%s-%d.log", dir, topic, partition))
+			readWrite, err := os.Create(fmt.Sprintf("%s/tmp/%s-%d.log", dir, topic, partition))
 
 			if err != nil {
 				return nil, err
 			}
 
-			return file, nil
+			return readWrite, nil
 		}
 	} else {
 		is.createWriterCallback = wCb[0]
 	}
 
 	return is
+}
+
+func (is *IsomorphicMemoryStorage) Read(
+	topic _const.Topic, partition _const.Partition, from, to int64,
+) ([]_const.Message, error) {
+	is.mu.RLock()
+	reader := is.reader[topic][partition]
+	is.mu.RUnlock()
+
+	messages, err := file.Read(reader, from, to)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return messages, nil
 }
 
 func (is *IsomorphicMemoryStorage) Write(topic _const.Topic, partition _const.Partition, message _const.Message) {
@@ -89,7 +106,7 @@ func (is *IsomorphicMemoryStorage) NewTopic(topic _const.Topic, partitions ...in
 
 	// Инициализуруем ресурсы: хранилище в памяти, а также объекты данных (файлы), разделенные по партициям
 	for partition := 1; partition <= parts; partition++ {
-		file, err := is.createWriterCallback(topic, partition)
+		readWrite, err := is.createWriterCallback(topic, partition)
 
 		if err != nil {
 			return err
@@ -98,7 +115,7 @@ func (is *IsomorphicMemoryStorage) NewTopic(topic _const.Topic, partitions ...in
 		is.wg.Add(1)
 
 		is.memory[topic][partition] = []_const.Message{}
-		is.reader[topic][partition] = file
+		is.reader[topic][partition] = readWrite
 
 		go is.gc(is.ctx, topic, partition)
 	}
@@ -139,11 +156,7 @@ func (is *IsomorphicMemoryStorage) gc(ctx context.Context, topic _const.Topic, p
 	ticker := time.NewTicker(flushInterval)
 
 	defer func() {
-		is.flush(topic, partition, w)
-		is.clean(topic)
-
 		_ = writer.Close()
-
 		is.wg.Done()
 
 		fmt.Printf("stop isomorphic GC for topic %s\n", topic)
@@ -152,6 +165,9 @@ func (is *IsomorphicMemoryStorage) gc(ctx context.Context, topic _const.Topic, p
 	for {
 		select {
 		case <-ctx.Done():
+			is.flush(topic, partition, w)
+			is.clean(topic)
+
 			return
 		case <-ticker.C:
 			is.flush(topic, partition, w)
