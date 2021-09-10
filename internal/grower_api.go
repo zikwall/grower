@@ -24,7 +24,7 @@ func (g *Grower) CreateTopic(topic _const.Topic, partitions _const.Partition) er
 
 	g.state.mu.Lock()
 	g.state.consumers[topic] = map[_const.Group]map[_const.ConsumerUUID][]int{}
-	g.state.offsets[topic] = map[_const.Group]map[_const.ConsumerUUID]map[_const.Partition]int64{}
+	g.state.offsets[topic] = map[_const.Group]map[_const.Partition]int64{}
 	g.state.mu.Unlock()
 
 	g.listeners = append(g.listeners, NewListener(

@@ -34,7 +34,7 @@ func (g *Grower) reBalance(topic _const.Topic, partitions _const.Partition, chan
 		g.state.mu.Lock()
 
 		g.state.consumers[topic][change.Group] = map[_const.ConsumerUUID][]int{}
-		g.state.offsets[topic][change.Group] = map[_const.ConsumerUUID]map[_const.Partition]int64{}
+		g.state.offsets[topic][change.Group] = map[_const.Partition]int64{}
 
 		consumersSnapshot = g.state.consumers[topic][change.Group]
 		g.state.mu.Unlock()
@@ -53,7 +53,7 @@ func (g *Grower) reBalance(topic _const.Topic, partitions _const.Partition, chan
 		consumersSnapshot[change.UUID] = []int{}
 
 		g.state.mu.Lock()
-		g.state.offsets[topic][change.Group][change.UUID] = map[_const.Partition]int64{}
+		g.state.offsets[topic][change.Group] = map[_const.Partition]int64{}
 		g.state.mu.Unlock()
 	}
 

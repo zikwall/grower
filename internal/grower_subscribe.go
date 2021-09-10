@@ -56,7 +56,7 @@ func (g *Grower) Subscribe(
 			case <-ticker.C:
 				g.state.mu.RLock()
 				partitionsSnapshot := g.state.consumers[topic][group][uuid]
-				offsetSnapshot := g.state.offsets[topic][group][uuid]
+				offsetSnapshot := g.state.offsets[topic][group]
 				g.state.mu.RUnlock()
 
 				var optimizedUpdate bool
@@ -84,7 +84,7 @@ func (g *Grower) Subscribe(
 				if optimizedUpdate {
 					// commit offset for partitions in consumer group for direct consumer
 					g.state.mu.Lock()
-					g.state.offsets[topic][group][uuid] = offsetSnapshot
+					g.state.offsets[topic][group] = offsetSnapshot
 					g.state.mu.Unlock()
 				}
 			}

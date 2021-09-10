@@ -56,7 +56,7 @@ func TestNewGrower(t *testing.T) {
 		publish("five")
 		publish("six")
 
-		<-time.After(time.Millisecond * 500)
+		<-time.After(time.Millisecond * 650)
 
 		if len(savedMessages) != 6 {
 			t.Fatalf("Failed, except 6 messages, give %d", len(savedMessages))
@@ -64,7 +64,7 @@ func TestNewGrower(t *testing.T) {
 
 		publish("seven")
 
-		<-time.After(time.Millisecond * 500)
+		<-time.After(time.Millisecond * 650)
 
 		if len(savedMessages) != 7 {
 			t.Fatalf("Failed, except 7 messages, give %d", len(savedMessages))
@@ -73,7 +73,7 @@ func TestNewGrower(t *testing.T) {
 		publish("8")
 		publish("9")
 
-		<-time.After(time.Millisecond * 500)
+		<-time.After(time.Millisecond * 650)
 
 		if len(savedMessages) != 9 {
 			fmt.Println(savedMessages)
