@@ -43,6 +43,12 @@ func (g *Grower) reBalance(topic _const.Topic, partitions _const.Partition, chan
 	switch change.Direction {
 	case GetOut:
 		delete(consumersSnapshot, change.UUID)
+		// if len(consumersSnapshot) == 0 {
+		// 	g.state.mu.Lock()
+		//	remove consumer data in state
+		//	remove offsets OR save in persistence storage
+		//	g.state.mu.Unlock()
+		// }
 	case GetIn:
 		consumersSnapshot[change.UUID] = []int{}
 	}
