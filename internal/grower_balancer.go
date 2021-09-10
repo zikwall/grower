@@ -27,7 +27,6 @@ func (g *Grower) balancer(topic _const.Topic, partitions _const.Partition) {
 func (g *Grower) reBalance(topic _const.Topic, partitions _const.Partition, change Change) {
 	g.state.mu.RLock()
 	consumersSnapshot := g.state.consumers[topic][change.Group]
-	partitionSnapshot := g.state.freePartitions[topic][change.Group]
 	g.state.mu.RUnlock()
 
 	switch change.Direction {
@@ -37,7 +36,7 @@ func (g *Grower) reBalance(topic _const.Topic, partitions _const.Partition, chan
 		consumersSnapshot[change.UUID] = []int{}
 	}
 
-	partitionSnapshot = map[_const.Partition]struct{}{}
+	partitionSnapshot := map[_const.Partition]struct{}{}
 
 	// Освобождаем все занятые партиции
 	for i := 1; i <= partitions; i++ {
