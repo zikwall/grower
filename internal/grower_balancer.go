@@ -26,8 +26,16 @@ func (g *Grower) balancer(topic _const.Topic, partitions _const.Partition) {
 
 func (g *Grower) reBalance(topic _const.Topic, partitions _const.Partition, change Change) {
 	g.state.mu.RLock()
-	consumersSnapshot := g.state.consumers[topic][change.Group]
+	consumersSnapshot, isExistConsumerGroup := g.state.consumers[topic][change.Group]
 	g.state.mu.RUnlock()
+
+	// Добавляем новую группу слушателей, состояния:
+	if !isExistConsumerGroup {
+		g.state.mu.Lock()
+		g.state.consumers[topic][change.Group] = map[_const.ConsumerUUID][]int{}
+		consumersSnapshot = g.state.consumers[topic][change.Group]
+		g.state.mu.Unlock()
+	}
 
 	switch change.Direction {
 	case GetOut:
@@ -63,7 +71,6 @@ func (g *Grower) reBalance(topic _const.Topic, partitions _const.Partition, chan
 	// Заменяем состояния
 	g.state.mu.Lock()
 	g.state.consumers[topic][change.Group] = consumersSnapshot
-	g.state.freePartitions[topic][change.Group] = partitionSnapshot
 	g.state.mu.Unlock()
 }
 
