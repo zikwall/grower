@@ -1,2 +1,3 @@
 .idea
 pkg/storage/tmp/*.log
+internal/tmp/*.log
