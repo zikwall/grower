@@ -36,7 +36,7 @@ func (g *Grower) Subscribe(
 	go func() {
 		for {
 			select {
-			case <-g.ctx.Done():
+			case <-ctx.Done():
 				return
 			case messages := <-ch:
 				onMessages(messages...)
