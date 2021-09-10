@@ -152,13 +152,20 @@ func (is *IsomorphicMemoryStorage) clean(topic _const.Topic, partition _const.Pa
 
 func (is *IsomorphicMemoryStorage) flush(topic _const.Topic, partition _const.Partition, w *bufio.Writer) {
 	is.mu.Lock()
-	data := strings.Join(is.memory[topic][partition], "\n")
-	is.memory[topic][partition] = is.memory[topic][partition][:0]
+
+	var data string
+	if messages := is.memory[topic][partition]; len(messages) > 0 {
+		data = strings.Join(messages, "\n")
+		is.memory[topic][partition] = is.memory[topic][partition][:0]
+	}
+
 	is.mu.Unlock()
 
-	_, _ = w.WriteString(data)
-	_, _ = w.WriteString("\n")
-	_ = w.Flush()
+	if data != "" {
+		_, _ = w.WriteString(data)
+		_, _ = w.WriteString("\n")
+		_ = w.Flush()
+	}
 }
 
 func (is *IsomorphicMemoryStorage) gc(ctx context.Context, topic _const.Topic, partition _const.Partition) {

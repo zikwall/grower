@@ -20,7 +20,7 @@ func (g *Grower) CreateTopic(topic _const.Topic, partitions _const.Partition) er
 
 	go g.balancer(topic, partitions)
 
-	g.messagePool[topic] = make(chan _const.Message)
+	g.messagePool[topic] = make(chan _const.Message, 1)
 
 	g.state.mu.Lock()
 	g.state.consumers[topic] = map[_const.Group]map[_const.ConsumerUUID][]int{}

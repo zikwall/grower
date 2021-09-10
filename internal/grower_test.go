@@ -49,11 +49,16 @@ func TestNewGrower(t *testing.T) {
 		publish("first")
 		publish("second")
 		publish("third")
+		publish("four")
 		publish("five")
 		publish("six")
 
 		<-time.After(time.Second * 3)
 
 		unsubscribe()
+
+		if err := grower.Drop(); err != nil {
+			t.Fatal(err)
+		}
 	})
 }
