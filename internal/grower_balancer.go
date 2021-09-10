@@ -51,6 +51,10 @@ func (g *Grower) reBalance(topic _const.Topic, partitions _const.Partition, chan
 		// }
 	case GetIn:
 		consumersSnapshot[change.UUID] = []int{}
+
+		g.state.mu.Lock()
+		g.state.offsets[topic][change.Group][change.UUID] = map[_const.Partition]int64{}
+		g.state.mu.Unlock()
 	}
 
 	partitionSnapshot := map[_const.Partition]struct{}{}

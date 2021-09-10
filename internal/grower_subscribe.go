@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-const reclaimInterval = time.Second * 1
+const reclaimInterval = time.Millisecond * 500
 const batchSize = 15
 
 const (
@@ -28,12 +28,10 @@ type Change struct {
 func (g *Grower) Subscribe(
 	topic _const.Topic, group _const.Group, onMessages func(messages ..._const.Message),
 ) func() {
-	ch := make(chan []_const.Message, 10)
+	ch := make(chan []_const.Message, 1)
 	ctx, cancel := context.WithCancel(g.ctx)
-
 	uuid := g.subscriberCreateUUID()
 	g.subscriberGetIn(topic, group, uuid)
-	defer g.subscriberGetOut(topic, group, uuid)
 
 	go func() {
 		for {
@@ -46,9 +44,11 @@ func (g *Grower) Subscribe(
 		}
 	}()
 
-	ticker := time.NewTicker(reclaimInterval)
-
 	go func() {
+		defer g.subscriberGetOut(topic, group, uuid)
+
+		ticker := time.NewTicker(reclaimInterval)
+
 		for {
 			select {
 			case <-ctx.Done():
@@ -69,8 +69,11 @@ func (g *Grower) Subscribe(
 						continue
 					}
 
+					if len(messages) > 0 {
+						ch <- messages
+					}
+
 					offsetSnapshot[partition] = offset
-					ch <- messages
 				}
 
 				// commit offset for partitions in consumer group for direct consumer

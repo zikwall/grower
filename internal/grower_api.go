@@ -18,6 +18,8 @@ func (g *Grower) CreateTopic(topic _const.Topic, partitions _const.Partition) er
 		return err
 	}
 
+	go g.balancer(topic, partitions)
+
 	g.messagePool[topic] = make(chan _const.Message)
 
 	g.state.mu.Lock()

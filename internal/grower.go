@@ -14,6 +14,7 @@ const shutdownWaitDuration = time.Second * 5
 
 type Grower struct {
 	ctx               context.Context
+	cancel            context.CancelFunc
 	shutdown          chan struct{}
 	wg                sync.WaitGroup
 	storage           storage.Storage
@@ -24,8 +25,10 @@ type Grower struct {
 }
 
 func NewGrower(ctx context.Context, _storage storage.Storage) *Grower {
+	ctx, cancel := context.WithCancel(ctx)
+
 	grower := &Grower{
-		ctx: ctx, wg: sync.WaitGroup{}, storage: _storage, shutdown: make(chan struct{}),
+		ctx: ctx, cancel: cancel, wg: sync.WaitGroup{}, storage: _storage, shutdown: make(chan struct{}),
 		subscriberChanges: make(chan Change),
 		messagePool:       map[_const.Topic]chan _const.Message{},
 		state:             NewGrowerState(),
@@ -67,6 +70,8 @@ func (g *Grower) await() error {
 }
 
 func (g *Grower) down() error {
+	g.cancel()
+
 	// Ждем завершения всех слушателей топиков
 	for _, listener := range g.listeners {
 		listener.stop()
