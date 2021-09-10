@@ -42,8 +42,10 @@ func TestNewGrower(t *testing.T) {
 			t.Fatal(err)
 		}
 
+		var savedMessages []string
+
 		unsubscribe := grower.Subscribe("rainbow", "SOAP", func(messages ..._const.Message) {
-			t.Log(messages)
+			savedMessages = append(savedMessages, messages...)
 		})
 
 		publish("first")
@@ -53,9 +55,13 @@ func TestNewGrower(t *testing.T) {
 		publish("five")
 		publish("six")
 
-		<-time.After(time.Second * 3)
+		<-time.After(time.Millisecond * 1000)
 
 		unsubscribe()
+
+		if len(savedMessages) != 6 {
+			t.Fatalf("Failed, except 6 messages, give %d", len(savedMessages))
+		}
 
 		if err := grower.Drop(); err != nil {
 			t.Fatal(err)

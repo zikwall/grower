@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-const reclaimInterval = time.Millisecond * 500
+const reclaimInterval = time.Millisecond * 100
 const batchSize = 15
 
 const (
@@ -71,9 +71,8 @@ func (g *Grower) Subscribe(
 
 					if len(messages) > 0 {
 						ch <- messages
+						offsetSnapshot[partition] = offset
 					}
-
-					offsetSnapshot[partition] = offset
 				}
 
 				// commit offset for partitions in consumer group for direct consumer
