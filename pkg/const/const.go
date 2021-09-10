@@ -10,3 +10,4 @@ type Topic = string
 type Partition = int
 type Message = string
 type Group = string
+type ConsumerUUID = int64

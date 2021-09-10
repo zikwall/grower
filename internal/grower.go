@@ -20,6 +20,7 @@ type Grower struct {
 	listeners         []*Listener
 	messagePool       map[_const.Topic]chan _const.Message
 	subscriberChanges chan Change
+	state             *GrowerState
 }
 
 func NewGrower(ctx context.Context, _storage storage.Storage) *Grower {
@@ -27,6 +28,7 @@ func NewGrower(ctx context.Context, _storage storage.Storage) *Grower {
 		ctx: ctx, wg: sync.WaitGroup{}, storage: _storage, shutdown: make(chan struct{}),
 		subscriberChanges: make(chan Change),
 		messagePool:       map[_const.Topic]chan _const.Message{},
+		state:             NewGrowerState(),
 	}
 	return grower
 }

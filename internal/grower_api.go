@@ -20,6 +20,11 @@ func (g *Grower) CreateTopic(topic _const.Topic, partitions _const.Partition) er
 
 	g.messagePool[topic] = make(chan _const.Message)
 
+	g.state.mu.Lock()
+	g.state.consumers[topic] = map[_const.Group]map[_const.ConsumerUUID][]int{}
+	g.state.freePartitions[topic] = map[_const.Group]map[_const.Partition]struct{}{}
+	g.state.mu.Unlock()
+
 	g.listeners = append(g.listeners, NewListener(
 		g.storage, g.messagePool[topic], topic, partitions),
 	)

@@ -13,47 +13,59 @@ func (g *Grower) balancer(topic _const.Topic, partitions _const.Partition) {
 	go func() {
 		defer g.wg.Done()
 
-		consumers := map[_const.Group]map[int64][]int{}
-		freePartitions := map[_const.Group]map[_const.Partition]struct{}{}
-
 		for {
 			select {
 			case <-g.ctx.Done():
 				return
 			case change := <-g.subscriberChanges:
-				switch change.Direction {
-				case GetOut:
-					delete(consumers[change.Group], change.UUID)
-				case GetIn:
-					// Добавляем нового слушателя
-					consumers[change.Group][change.UUID] = []int{}
-					freePartitions[change.Group] = map[_const.Partition]struct{}{}
-
-					// Освобождаем все занятые партиции
-					for i := 1; i <= partitions; i++ {
-						freePartitions[change.Group][i] = struct{}{}
-					}
-				}
-
-				// Считаем, сколько партиций приходится на одного слушателя.
-				// Далее равномерно распределяем слушателей по партициям
-				partsForOne := distributionPartitions(partitions, len(consumers[change.Group]))
-				for consumer := range consumers[change.Group] {
-					for part := range freePartitions[change.Group] {
-						// если слушатель уже "полный", переходим к заполнению следующего
-						if len(consumers[change.Group][consumer]) >= partsForOne {
-							break
-						}
-
-						// линкуем слушателя и партицию
-						consumers[change.Group][consumer] = append(consumers[change.Group][consumer], part)
-						// удаляем свободную партицию
-						delete(freePartitions[change.Group], part)
-					}
-				}
+				g.reBalance(topic, partitions, change)
 			}
 		}
 	}()
+}
+
+func (g *Grower) reBalance(topic _const.Topic, partitions _const.Partition, change Change) {
+	g.state.mu.RLock()
+	consumersSnapshot := g.state.consumers[topic][change.Group]
+	partitionSnapshot := g.state.freePartitions[topic][change.Group]
+	g.state.mu.RUnlock()
+
+	switch change.Direction {
+	case GetOut:
+		delete(consumersSnapshot, change.UUID)
+	case GetIn:
+		consumersSnapshot[change.UUID] = []int{}
+	}
+
+	partitionSnapshot = map[_const.Partition]struct{}{}
+
+	// Освобождаем все занятые партиции
+	for i := 1; i <= partitions; i++ {
+		partitionSnapshot[i] = struct{}{}
+	}
+
+	// Считаем, сколько партиций приходится на одного слушателя.
+	// Далее равномерно распределяем слушателей по партициям
+	partsForOne := distributionPartitions(partitions, len(consumersSnapshot))
+	for consumerUUID := range consumersSnapshot {
+		for part := range partitionSnapshot {
+			// если слушатель уже "полный", переходим к заполнению следующего
+			if len(consumersSnapshot[consumerUUID]) >= partsForOne {
+				break
+			}
+
+			// линкуем слушателя и партицию
+			consumersSnapshot[consumerUUID] = append(consumersSnapshot[consumerUUID], part)
+			// удаляем свободную партицию
+			delete(partitionSnapshot, part)
+		}
+	}
+
+	// Заменяем состояния
+	g.state.mu.Lock()
+	g.state.consumers[topic][change.Group] = consumersSnapshot
+	g.state.freePartitions[topic][change.Group] = partitionSnapshot
+	g.state.mu.Unlock()
 }
 
 func distributionPartitions(partitions, consumers int) int {
