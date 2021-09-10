@@ -7,6 +7,7 @@ import (
 )
 
 const reclaimInterval = time.Second * 1
+const batchSize = 15
 
 const (
 	GetOut = iota
@@ -53,23 +54,29 @@ func (g *Grower) Subscribe(
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
-				// Читаем топик и партиции для определенной группы подписчика
-				// ```go
-				//	for partition := range partitions {
-				//     	offset := getOffset(topic, partition, consumer)
-				//		current := getCurrentLen(topic, partition)
-				//
-				//		генерируем новое смещение newOffset := offset + batchSize
-				//
-				//		messages := storage.Read(topic, partition, offset, newOffset)
-				//
-				//		сохраняем за пользователем новый офсет
-				//		commitOffset(topic, partition, consumer, newOffset)
-				//
-				//		пишем в канал для подписчика
-				//		ch <- messages
-				//	}
-				// ```
+				g.state.mu.RLock()
+				partitionsSnapshot := g.state.consumers[topic][group][uuid]
+				offsetSnapshot := g.state.offsets[topic][group][uuid]
+				g.state.mu.RUnlock()
+
+				for _, partition := range partitionsSnapshot {
+					offset := offsetSnapshot[partition] + batchSize
+
+					messages, err := g.storage.Read(topic, partition, offsetSnapshot[partition], offset)
+
+					if err != nil {
+						// send error to chan of errors
+						continue
+					}
+
+					offsetSnapshot[partition] = offset
+					ch <- messages
+				}
+
+				// commit offset for partitions in consumer group for direct consumer
+				g.state.mu.Lock()
+				g.state.offsets[topic][group][uuid] = offsetSnapshot
+				g.state.mu.Unlock()
 			}
 		}
 	}()

@@ -32,7 +32,10 @@ func (g *Grower) reBalance(topic _const.Topic, partitions _const.Partition, chan
 	// Добавляем новую группу слушателей, состояния:
 	if !isExistConsumerGroup {
 		g.state.mu.Lock()
+
 		g.state.consumers[topic][change.Group] = map[_const.ConsumerUUID][]int{}
+		g.state.offsets[topic][change.Group] = map[_const.ConsumerUUID]map[_const.Partition]int64{}
+
 		consumersSnapshot = g.state.consumers[topic][change.Group]
 		g.state.mu.Unlock()
 	}
