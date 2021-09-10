@@ -130,12 +130,23 @@ func (is *IsomorphicMemoryStorage) NewTopic(topic _const.Topic, partitions ...in
 func (is *IsomorphicMemoryStorage) Close() error {
 	is.cancel()
 	is.wg.Wait()
+
+	is.mu.Lock()
+	for k := range is.memory {
+		delete(is.memory, k)
+	}
+
+	for k := range is.reader {
+		delete(is.reader, k)
+	}
+	is.mu.Unlock()
+
 	return nil
 }
 
-func (is *IsomorphicMemoryStorage) clean(topic _const.Topic) {
+func (is *IsomorphicMemoryStorage) clean(topic _const.Topic, partition _const.Partition) {
 	is.mu.Lock()
-	delete(is.memory, topic)
+	delete(is.memory[topic], partition)
 	is.mu.Unlock()
 }
 
@@ -161,6 +172,7 @@ func (is *IsomorphicMemoryStorage) gc(ctx context.Context, topic _const.Topic, p
 
 	defer func() {
 		_ = writer.Close()
+		ticker.Stop()
 		is.wg.Done()
 
 		fmt.Printf("stop isomorphic GC for topic %s\n", topic)
@@ -170,7 +182,7 @@ func (is *IsomorphicMemoryStorage) gc(ctx context.Context, topic _const.Topic, p
 		select {
 		case <-ctx.Done():
 			is.flush(topic, partition, w)
-			is.clean(topic)
+			is.clean(topic, partition)
 
 			return
 		case <-ticker.C:
