@@ -59,10 +59,10 @@ func (g *Grower) Subscribe(
 				offsetSnapshot := g.state.offsets[topic][group][uuid]
 				g.state.mu.RUnlock()
 
+				var optimizedUpdate bool
 				for _, partition := range partitionsSnapshot {
 					offset := offsetSnapshot[partition] + batchSize
-
-					messages, err := g.storage.Read(topic, partition, offsetSnapshot[partition], offset)
+					messages, err := g.storage.Read(topic, partition, offsetSnapshot[partition]+1, offset)
 
 					if err != nil {
 						// send error to chan of errors
@@ -71,14 +71,22 @@ func (g *Grower) Subscribe(
 
 					if len(messages) > 0 {
 						ch <- messages
+
+						// выравниваем смещение в партиции на последнее сообщение
+						if int64(len(messages)) < batchSize {
+							offset = offset - batchSize + int64(len(messages))
+						}
 						offsetSnapshot[partition] = offset
+						optimizedUpdate = true
 					}
 				}
 
-				// commit offset for partitions in consumer group for direct consumer
-				g.state.mu.Lock()
-				g.state.offsets[topic][group][uuid] = offsetSnapshot
-				g.state.mu.Unlock()
+				if optimizedUpdate {
+					// commit offset for partitions in consumer group for direct consumer
+					g.state.mu.Lock()
+					g.state.offsets[topic][group][uuid] = offsetSnapshot
+					g.state.mu.Unlock()
+				}
 			}
 		}
 	}()

@@ -2,6 +2,7 @@ package internal
 
 import (
 	"context"
+	"fmt"
 	_const "github.com/zikwall/grower/pkg/const"
 	"github.com/zikwall/grower/pkg/storage"
 	"testing"
@@ -55,13 +56,31 @@ func TestNewGrower(t *testing.T) {
 		publish("five")
 		publish("six")
 
-		<-time.After(time.Millisecond * 1000)
-
-		unsubscribe()
+		<-time.After(time.Millisecond * 500)
 
 		if len(savedMessages) != 6 {
 			t.Fatalf("Failed, except 6 messages, give %d", len(savedMessages))
 		}
+
+		publish("seven")
+
+		<-time.After(time.Millisecond * 500)
+
+		if len(savedMessages) != 7 {
+			t.Fatalf("Failed, except 7 messages, give %d", len(savedMessages))
+		}
+
+		publish("8")
+		publish("9")
+
+		<-time.After(time.Millisecond * 500)
+
+		if len(savedMessages) != 9 {
+			fmt.Println(savedMessages)
+			t.Fatalf("Failed, except 9 messages, give %d", len(savedMessages))
+		}
+
+		unsubscribe()
 
 		if err := grower.Drop(); err != nil {
 			t.Fatal(err)

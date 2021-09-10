@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	flushInterval = time.Millisecond * 500
+	flushInterval = time.Millisecond * 300
 )
 
 type IsomorphicMemoryStorage struct {
