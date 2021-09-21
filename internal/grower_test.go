@@ -47,16 +47,39 @@ func TestNewGrower(t *testing.T) {
 
 		unsubscribe := grower.Subscribe("rainbow", "SOAP", func(messages ..._const.Message) {
 			savedMessages = append(savedMessages, messages...)
+			fmt.Println("FIRST", messages)
 		})
+
+		unsubscribe2 := grower.Subscribe("rainbow", "SOAP", func(messages ..._const.Message) {
+			savedMessages = append(savedMessages, messages...)
+			fmt.Println("SECOND", messages)
+		})
+
+		defer unsubscribe()
+		defer unsubscribe2()
 
 		publish("first")
 		publish("second")
+
+		// not affected, because topic rainbow have a only two partition
+		// or a scenario is possible when a new listener pushes an existing one, example:
+		// FIRST (770144581), SECOND(816736747), THREE(909188539)
+		// NEW BALANCE map[770144581:[1 2]]
+		// NEW BALANCE map[770144581:[2] 816736747:[1]]
+		// NEW BALANCE map[770144581:[] 816736747:[2] 909188539:[1]]
+		unsubscribe3 := grower.Subscribe("rainbow", "SOAP", func(messages ..._const.Message) {
+			savedMessages = append(savedMessages, messages...)
+			fmt.Println("THREE", messages)
+		})
+
+		defer unsubscribe3()
+
 		publish("third")
 		publish("four")
 		publish("five")
 		publish("six")
 
-		<-time.After(time.Millisecond * 650)
+		<-time.After(time.Millisecond * 550)
 
 		if len(savedMessages) != 6 {
 			t.Fatalf("Failed, except 6 messages, give %d", len(savedMessages))
@@ -64,7 +87,7 @@ func TestNewGrower(t *testing.T) {
 
 		publish("seven")
 
-		<-time.After(time.Millisecond * 650)
+		<-time.After(time.Millisecond * 550)
 
 		if len(savedMessages) != 7 {
 			t.Fatalf("Failed, except 7 messages, give %d", len(savedMessages))
@@ -73,14 +96,11 @@ func TestNewGrower(t *testing.T) {
 		publish("8")
 		publish("9")
 
-		<-time.After(time.Millisecond * 650)
+		<-time.After(time.Millisecond * 550)
 
 		if len(savedMessages) != 9 {
-			fmt.Println(savedMessages)
 			t.Fatalf("Failed, except 9 messages, give %d", len(savedMessages))
 		}
-
-		unsubscribe()
 
 		if err := grower.Drop(); err != nil {
 			t.Fatal(err)

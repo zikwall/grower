@@ -3,6 +3,7 @@ package internal
 import (
 	"errors"
 	_const "github.com/zikwall/grower/pkg/const"
+	"sync"
 )
 
 func (g *Grower) CreateTopic(topic _const.Topic, partitions _const.Partition) error {
@@ -25,6 +26,7 @@ func (g *Grower) CreateTopic(topic _const.Topic, partitions _const.Partition) er
 	g.state.mu.Lock()
 	g.state.consumers[topic] = map[_const.Group]map[_const.ConsumerUUID][]int{}
 	g.state.offsets[topic] = map[_const.Group]map[_const.Partition]int64{}
+	g.state.waits[topic] = map[_const.Group]*sync.WaitGroup{}
 	g.state.mu.Unlock()
 
 	g.listeners = append(g.listeners, NewListener(

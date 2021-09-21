@@ -1,8 +1,10 @@
 package internal
 
 import (
+	"fmt"
 	_const "github.com/zikwall/grower/pkg/const"
 	"math"
+	"sync"
 )
 
 // функция в данный момент работает только "локально",
@@ -24,9 +26,23 @@ func (g *Grower) balancer(topic _const.Topic, partitions _const.Partition) {
 	}()
 }
 
+// reBalance rebalances the consumers when adding or removing listening
+//
+// an example:
+// create_topic("rainbow_topic_name", 2) -> topic with two partitions
+//
+// subscribe("rainbow_topic_name", "soap_consumer_group", () => on receive messages callback) -> uuid_one
+// -> reBalance
+// --> state = map[uuid_one: [1, 2]]
+//
+// subscribe("rainbow_topic_name", "soap_consumer_group", () => on receive messages callback) -> uuid_two
+// -> reBalance
+// --> state = map[uuid_one: [1], uuid_two: [2]]
+//
 func (g *Grower) reBalance(topic _const.Topic, partitions _const.Partition, change Change) {
 	g.state.mu.RLock()
 	consumersSnapshot, isExistConsumerGroup := g.state.consumers[topic][change.Group]
+	waitSnapshot := g.state.waits[topic][change.Group]
 	g.state.mu.RUnlock()
 
 	// Добавляем новую группу слушателей, состояния:
@@ -35,10 +51,15 @@ func (g *Grower) reBalance(topic _const.Topic, partitions _const.Partition, chan
 
 		g.state.consumers[topic][change.Group] = map[_const.ConsumerUUID][]int{}
 		g.state.offsets[topic][change.Group] = map[_const.Partition]int64{}
+		g.state.waits[topic][change.Group] = &sync.WaitGroup{}
 
 		consumersSnapshot = g.state.consumers[topic][change.Group]
+		waitSnapshot = g.state.waits[topic][change.Group]
 		g.state.mu.Unlock()
 	}
+
+	// Добавляем ожидание для перебалансировки слушателей
+	waitSnapshot.Add(1)
 
 	switch change.Direction {
 	case GetOut:
@@ -64,6 +85,11 @@ func (g *Grower) reBalance(topic _const.Topic, partitions _const.Partition, chan
 		partitionSnapshot[i] = struct{}{}
 	}
 
+	// очищаем существующие партиции из прослушивания
+	for consumerUUID := range consumersSnapshot {
+		consumersSnapshot[consumerUUID] = []int{}
+	}
+
 	// Считаем, сколько партиций приходится на одного слушателя.
 	// Далее равномерно распределяем слушателей по партициям
 	partsForOne := distributionPartitions(partitions, len(consumersSnapshot))
@@ -85,6 +111,11 @@ func (g *Grower) reBalance(topic _const.Topic, partitions _const.Partition, chan
 	g.state.mu.Lock()
 	g.state.consumers[topic][change.Group] = consumersSnapshot
 	g.state.mu.Unlock()
+
+	fmt.Println("NEW BALANCE", consumersSnapshot)
+
+	// снимаем ожидание перебалансировки слушателей
+	waitSnapshot.Done()
 }
 
 func distributionPartitions(partitions, consumers int) int {

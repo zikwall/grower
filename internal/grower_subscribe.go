@@ -6,8 +6,9 @@ import (
 	"time"
 )
 
-const reclaimInterval = time.Millisecond * 100
+const reclaimInterval = time.Millisecond * 150
 const batchSize = 15
+const optimizedPartitionsSize = 10
 
 const (
 	GetOut = iota
@@ -54,15 +55,29 @@ func (g *Grower) Subscribe(
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
+				var offsetsSnapshot map[_const.Partition]int64
+				var optimizedUpdate bool
+
 				g.state.mu.RLock()
-				partitionsSnapshot := g.state.consumers[topic][group][uuid]
-				offsetSnapshot := g.state.offsets[topic][group]
+				waitSnapshot := g.state.waits[topic][group]
 				g.state.mu.RUnlock()
 
-				var optimizedUpdate bool
+				// если идет процесс перебалансировки - ожидаем снятия блокировки (окончания перебалансировки)
+				waitSnapshot.Wait()
+
+				g.state.mu.RLock()
+				offsetsSnapshot = make(map[_const.Partition]int64, optimizedPartitionsSize)
+
+				// получаем все офсеты для прилинкованных партиций слушателя
+				partitionsSnapshot := g.state.consumers[topic][group][uuid]
 				for _, partition := range partitionsSnapshot {
-					offset := offsetSnapshot[partition] + batchSize
-					messages, err := g.storage.Read(topic, partition, offsetSnapshot[partition]+1, offset)
+					offsetsSnapshot[partition] = g.state.offsets[topic][group][partition]
+				}
+				g.state.mu.RUnlock()
+
+				for _, partition := range partitionsSnapshot {
+					offset := offsetsSnapshot[partition] + batchSize
+					messages, err := g.storage.Read(topic, partition, offsetsSnapshot[partition]+1, offset)
 
 					if err != nil {
 						// send error to chan of errors
@@ -76,7 +91,7 @@ func (g *Grower) Subscribe(
 						if int64(len(messages)) < batchSize {
 							offset = offset - batchSize + int64(len(messages))
 						}
-						offsetSnapshot[partition] = offset
+						offsetsSnapshot[partition] = offset
 						optimizedUpdate = true
 					}
 				}
@@ -84,7 +99,9 @@ func (g *Grower) Subscribe(
 				if optimizedUpdate {
 					// commit offset for partitions in consumer group for direct consumer
 					g.state.mu.Lock()
-					g.state.offsets[topic][group] = offsetSnapshot
+					for partition, offset := range offsetsSnapshot {
+						g.state.offsets[topic][group][partition] = offset
+					}
 					g.state.mu.Unlock()
 				}
 			}
