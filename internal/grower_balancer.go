@@ -1,7 +1,6 @@
 package internal
 
 import (
-	"fmt"
 	_const "github.com/zikwall/grower/pkg/const"
 	"math"
 	"sync"
@@ -111,8 +110,6 @@ func (g *Grower) reBalance(topic _const.Topic, partitions _const.Partition, chan
 	g.state.mu.Lock()
 	g.state.consumers[topic][change.Group] = consumersSnapshot
 	g.state.mu.Unlock()
-
-	fmt.Println("NEW BALANCE", consumersSnapshot)
 
 	// снимаем ожидание перебалансировки слушателей
 	waitSnapshot.Done()
