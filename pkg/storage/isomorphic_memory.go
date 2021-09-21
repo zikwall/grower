@@ -118,7 +118,6 @@ func (is *IsomorphicMemoryStorage) NewTopic(topic _const.Topic, partitions ...in
 	is.memory[topic] = map[_const.Partition][]_const.Message{}
 	is.reader[topic] = map[_const.Partition]*os.File{}
 	is.topicsContext[topic] = newTopicContext(is.ctx)
-
 	is.mu.Unlock()
 
 	// Инициализуруем ресурсы: хранилище в памяти, а также объекты данных (файлы), разделенные по партициям
@@ -129,13 +128,12 @@ func (is *IsomorphicMemoryStorage) NewTopic(topic _const.Topic, partitions ...in
 			return err
 		}
 
-		is.wg.Add(1)
-
 		is.mu.Lock()
 		is.memory[topic][partition] = []_const.Message{}
 		is.reader[topic][partition] = readWrite
 		is.mu.Unlock()
 
+		is.wg.Add(1)
 		go is.gc(topic, partition)
 	}
 
@@ -158,6 +156,7 @@ func (is *IsomorphicMemoryStorage) DeleteTopic(topic _const.Topic) error {
 	delete(is.memory, topic)
 	delete(is.reader, topic)
 	delete(is.topicsContext, topic)
+
 	is.mu.Unlock()
 
 	return nil
