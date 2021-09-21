@@ -36,6 +36,10 @@ func (g *Grower) CreateTopic(topic _const.Topic, partitions _const.Partition) er
 	return nil
 }
 
+func (g *Grower) DeleteTopic(topic _const.Topic) error {
+	return g.storage.DeleteTopic(topic)
+}
+
 func (g *Grower) Write(topic _const.Topic, message _const.Message) {
 	g.messagePool[topic] <- message
 }

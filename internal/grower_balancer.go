@@ -7,12 +7,10 @@ import (
 	"time"
 )
 
-// функция в данный момент работает только "локально",
-// состояние предтся вынести за рамки данной процедуры распеределения
 func (g *Grower) balancer(topic _const.Topic, partitions _const.Partition) {
 	g.wg.Add(1)
 
-	periodicChecker := time.NewTicker(60_000 * time.Millisecond)
+	periodicChecker := time.NewTicker(10_000 * time.Millisecond)
 
 	go func() {
 		defer func() {

@@ -19,6 +19,10 @@ func (mc MockStorage) HasTopic(_ _const.Topic) bool {
 	return true
 }
 
+func (mc MockStorage) DeleteTopic(_ _const.Topic) error {
+	return nil
+}
+
 func (mc MockStorage) Read(_ _const.Topic, _ _const.Partition, _, _ int64) ([]_const.Message, error) {
 	return nil, nil
 }

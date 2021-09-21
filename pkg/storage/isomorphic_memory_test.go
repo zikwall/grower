@@ -72,5 +72,21 @@ func TestNewIsomorphicMemoryStorage(t *testing.T) {
 				t.Fatal("Failed, expect empty partitions")
 			}
 		})
+
+		t.Run("it should be successfully create and delete topic", func(t *testing.T) {
+			if err := is.NewTopic("rainbow_temporary", 2); err != nil {
+				t.Fatal(err)
+			}
+
+			if !is.HasTopic("rainbow_temporary") {
+				t.Fatal("Failed, expect exist topic")
+			}
+
+			_ = is.DeleteTopic("rainbow_temporary")
+
+			if is.HasTopic("rainbow_temporary") {
+				t.Fatal("Failed, expect non exist topic")
+			}
+		})
 	})
 }
