@@ -4,6 +4,7 @@ import (
 	_const "github.com/zikwall/grower/pkg/const"
 	"math"
 	"sync"
+	"time"
 )
 
 // функция в данный момент работает только "локально",
@@ -11,8 +12,21 @@ import (
 func (g *Grower) balancer(topic _const.Topic, partitions _const.Partition) {
 	g.wg.Add(1)
 
+	periodicChecker := time.NewTicker(60_000 * time.Millisecond)
+
 	go func() {
-		defer g.wg.Done()
+		defer func() {
+			g.state.mu.Lock()
+			delete(g.state.consumers, topic)
+			delete(g.state.waits, topic)
+			delete(g.state.offsets, topic)
+			g.state.mu.Unlock()
+
+			close(g.messagePool[topic])
+			delete(g.messagePool, topic)
+
+			g.wg.Done()
+		}()
 
 		for {
 			select {
@@ -20,6 +34,10 @@ func (g *Grower) balancer(topic _const.Topic, partitions _const.Partition) {
 				return
 			case change := <-g.subscriberChanges:
 				g.reBalance(topic, partitions, change)
+			case <-periodicChecker.C:
+				if !g.storage.HasTopic(topic) {
+					return
+				}
 			}
 		}
 	}()
@@ -63,12 +81,16 @@ func (g *Grower) reBalance(topic _const.Topic, partitions _const.Partition, chan
 	switch change.Direction {
 	case GetOut:
 		delete(consumersSnapshot, change.UUID)
-		// if len(consumersSnapshot) == 0 {
-		// 	g.state.mu.Lock()
-		//	remove consumer data in state
-		//	remove offsets OR save in persistence storage
-		//	g.state.mu.Unlock()
-		// }
+		// если у нас не осталось подписчиков подчищаем ресурсы группы
+		// в будущем надо будет сохранить офсеты группы подписчиков, иначе при заходе под этой же группой
+		// будет происходить не правильное чтение, а именно все начнется заного
+		if len(consumersSnapshot) == 0 {
+			g.state.mu.Lock()
+			delete(g.state.consumers[topic], change.Group)
+			delete(g.state.offsets[topic], change.Group)
+			delete(g.state.waits[topic], change.Group)
+			g.state.mu.Unlock()
+		}
 	case GetIn:
 		consumersSnapshot[change.UUID] = []int{}
 

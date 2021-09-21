@@ -25,14 +25,14 @@ type Grower struct {
 }
 
 func NewGrower(ctx context.Context, _storage storage.Storage) *Grower {
-	ctx, cancel := context.WithCancel(ctx)
-
 	grower := &Grower{
-		ctx: ctx, cancel: cancel, wg: sync.WaitGroup{}, storage: _storage, shutdown: make(chan struct{}),
+		wg: sync.WaitGroup{}, storage: _storage, shutdown: make(chan struct{}),
 		subscriberChanges: make(chan Change),
 		messagePool:       map[_const.Topic]chan _const.Message{},
 		state:             NewGrowerState(),
 	}
+
+	grower.ctx, grower.cancel = context.WithCancel(ctx)
 	return grower
 }
 

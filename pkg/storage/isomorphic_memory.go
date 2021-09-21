@@ -127,6 +127,13 @@ func (is *IsomorphicMemoryStorage) NewTopic(topic _const.Topic, partitions ...in
 	return nil
 }
 
+func (is *IsomorphicMemoryStorage) HasTopic(topic _const.Topic) bool {
+	is.mu.RLock()
+	_, has := is.memory[topic]
+	is.mu.RUnlock()
+	return has
+}
+
 func (is *IsomorphicMemoryStorage) Close() error {
 	is.cancel()
 	is.wg.Wait()
