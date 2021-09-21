@@ -174,6 +174,10 @@ func (is *IsomorphicMemoryStorage) Close() error {
 	for k := range is.reader {
 		delete(is.reader, k)
 	}
+
+	for k := range is.topicsContext {
+		delete(is.topicsContext, k)
+	}
 	is.mu.Unlock()
 
 	return nil
