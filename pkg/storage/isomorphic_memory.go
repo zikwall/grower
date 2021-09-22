@@ -7,6 +7,7 @@ import (
 	"fmt"
 	_const "github.com/zikwall/grower/pkg/const"
 	"github.com/zikwall/grower/pkg/storage/file"
+	"log"
 	"os"
 	"strings"
 	"sync"
@@ -28,45 +29,42 @@ func newTopicContext(ctx context.Context) *TopicContext {
 	return topicContext
 }
 
+type WriterCallback = func(topic _const.Topic, partition _const.Partition) (*os.File, error)
+
+func buildDefaultWriterCallback() WriterCallback {
+	return func(topic _const.Topic, partition _const.Partition) (*os.File, error) {
+		dir, err := os.Getwd()
+		if err != nil {
+			return nil, err
+		}
+
+		return os.Create(fmt.Sprintf("%s/tmp/%s-%d.log", dir, topic, partition))
+	}
+}
+
 type IsomorphicMemoryStorage struct {
 	ctx                  context.Context
 	cancel               context.CancelFunc
 	mu                   sync.RWMutex
 	memory               map[_const.Topic]map[_const.Partition][]_const.Message
-	reader               map[_const.Topic]map[_const.Partition]*os.File
+	descriptor           map[_const.Topic]map[_const.Partition]*os.File
 	topicsContext        map[_const.Topic]*TopicContext
 	createWriterCallback func(topic _const.Topic, partition _const.Partition) (*os.File, error)
 	wg                   sync.WaitGroup
 }
 
-func NewIsomorphicMemoryStorage(ctx context.Context,
-	wCb ...func(topic _const.Topic, partition _const.Partition) (*os.File, error),
-) *IsomorphicMemoryStorage {
+func NewIsomorphicMemoryStorage(ctx context.Context, wCb ...WriterCallback) *IsomorphicMemoryStorage {
 	ctx, cancel := context.WithCancel(ctx)
 
 	is := &IsomorphicMemoryStorage{
 		ctx: ctx, cancel: cancel, wg: sync.WaitGroup{}, mu: sync.RWMutex{},
 		memory:        map[_const.Topic]map[_const.Partition][]_const.Message{},
-		reader:        map[_const.Topic]map[_const.Partition]*os.File{},
+		descriptor:    map[_const.Topic]map[_const.Partition]*os.File{},
 		topicsContext: map[_const.Topic]*TopicContext{},
 	}
 
 	if len(wCb) == 0 {
-		is.createWriterCallback = func(topic _const.Topic, partition _const.Partition) (*os.File, error) {
-			dir, err := os.Getwd()
-
-			if err != nil {
-				return nil, err
-			}
-
-			readWrite, err := os.Create(fmt.Sprintf("%s/tmp/%s-%d.log", dir, topic, partition))
-
-			if err != nil {
-				return nil, err
-			}
-
-			return readWrite, nil
-		}
+		is.createWriterCallback = buildDefaultWriterCallback()
 	} else {
 		is.createWriterCallback = wCb[0]
 	}
@@ -74,14 +72,39 @@ func NewIsomorphicMemoryStorage(ctx context.Context,
 	return is
 }
 
+func (is *IsomorphicMemoryStorage) periodicallyCheckResources() {
+	defer log.Println("isomorphic memory resources cleaner is stopped")
+	ticker := time.NewTicker(10_000 * time.Millisecond)
+
+	for {
+		select {
+		case <-is.ctx.Done():
+			ticker.Stop()
+			return
+		case <-ticker.C:
+			is.mu.RLock()
+			topicContextSnapshot := is.topicsContext
+			is.mu.RUnlock()
+
+			for topic := range topicContextSnapshot {
+				if is.HasTopic(topic) {
+					is.mu.Lock()
+					delete(is.topicsContext, topic)
+					is.mu.Unlock()
+				}
+			}
+		}
+	}
+}
+
 func (is *IsomorphicMemoryStorage) Read(
 	topic _const.Topic, partition _const.Partition, from, to int64,
 ) ([]_const.Message, error) {
 	is.mu.RLock()
-	reader := is.reader[topic][partition]
+	descriptor := is.descriptor[topic][partition]
 	is.mu.RUnlock()
 
-	messages, err := file.Read(reader, from, to)
+	messages, err := file.Read(descriptor, from, to)
 
 	if err != nil {
 		return nil, err
@@ -116,7 +139,7 @@ func (is *IsomorphicMemoryStorage) NewTopic(topic _const.Topic, partitions ...in
 
 	is.mu.Lock()
 	is.memory[topic] = map[_const.Partition][]_const.Message{}
-	is.reader[topic] = map[_const.Partition]*os.File{}
+	is.descriptor[topic] = map[_const.Partition]*os.File{}
 	is.topicsContext[topic] = newTopicContext(is.ctx)
 	is.mu.Unlock()
 
@@ -130,7 +153,7 @@ func (is *IsomorphicMemoryStorage) NewTopic(topic _const.Topic, partitions ...in
 
 		is.mu.Lock()
 		is.memory[topic][partition] = []_const.Message{}
-		is.reader[topic][partition] = readWrite
+		is.descriptor[topic][partition] = readWrite
 		is.mu.Unlock()
 
 		is.wg.Add(1)
@@ -151,11 +174,8 @@ func (is *IsomorphicMemoryStorage) DeleteTopic(topic _const.Topic) error {
 	is.mu.Lock()
 	is.topicsContext[topic].cancel()
 
-	<-time.After(10 * time.Microsecond)
-
 	delete(is.memory, topic)
-	delete(is.reader, topic)
-	delete(is.topicsContext, topic)
+	delete(is.descriptor, topic)
 
 	is.mu.Unlock()
 
@@ -171,8 +191,8 @@ func (is *IsomorphicMemoryStorage) Close() error {
 		delete(is.memory, k)
 	}
 
-	for k := range is.reader {
-		delete(is.reader, k)
+	for k := range is.descriptor {
+		delete(is.descriptor, k)
 	}
 
 	for k := range is.topicsContext {
@@ -209,28 +229,26 @@ func (is *IsomorphicMemoryStorage) flush(topic _const.Topic, partition _const.Pa
 
 func (is *IsomorphicMemoryStorage) gc(topic _const.Topic, partition _const.Partition) {
 	is.mu.RLock()
-	writer := is.reader[topic][partition]
+	descriptor := is.descriptor[topic][partition]
 	topicContext := is.topicsContext[topic]
 	is.mu.RUnlock()
 
-	w := bufio.NewWriter(writer)
-
+	writer := bufio.NewWriter(descriptor)
 	ticker := time.NewTicker(flushInterval)
 
 	defer fmt.Printf("stop isomorphic GC for topic %s and partition %d\n", topic, partition)
-
 	for {
 		select {
 		case <-topicContext.ctx.Done():
-			is.flush(topic, partition, w)
+			is.flush(topic, partition, writer)
 			is.clean(topic, partition)
-			_ = writer.Close()
+			_ = descriptor.Close()
 			ticker.Stop()
 			is.wg.Done()
 
 			return
 		case <-ticker.C:
-			is.flush(topic, partition, w)
+			is.flush(topic, partition, writer)
 		}
 	}
 }
