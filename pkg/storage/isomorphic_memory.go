@@ -7,7 +7,6 @@ import (
 	"fmt"
 	_const "github.com/zikwall/grower/pkg/const"
 	"github.com/zikwall/grower/pkg/storage/file"
-	"log"
 	"os"
 	"strings"
 	"sync"
@@ -69,11 +68,12 @@ func NewIsomorphicMemoryStorage(ctx context.Context, wCb ...WriterCallback) *Iso
 		is.createWriterCallback = wCb[0]
 	}
 
+	go is.periodicallyCheckResources()
 	return is
 }
 
 func (is *IsomorphicMemoryStorage) periodicallyCheckResources() {
-	defer log.Println("isomorphic memory resources cleaner is stopped")
+	defer fmt.Println("isomorphic memory resources cleaner is stopped")
 	ticker := time.NewTicker(10_000 * time.Millisecond)
 
 	for {
