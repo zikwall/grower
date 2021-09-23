@@ -35,19 +35,31 @@ $ producer -> (rainbow, 'Hello, Kitty 10!')
 // describe topic in this moment, partition size max is 3 message
 $ desc topic rainbow
 -- /rainbow
-  -- /1
+  -- /0
     -- 00.growerlog   ['Hello, Kitty 0!', 'Hello, Kitty 3!', 'Hello, Kitty 6!']
     -- 00.growerindex 
     -- 03.growerlog   ['Hello, Kitty 9!', 'Hello, Kitty 12!', 'Hello, Kitty 15!']
     -- 03.growerindex
-  -- /2
+  -- /1
     -- 00.growerlog   ['Hello, Kitty 1!', 'Hello, Kitty 4!', 'Hello, Kitty 7!']
     -- 00.growerindex
     -- 03.growerlog   ['Hello, Kitty 10!', 'Hello, Kitty 13!', 'Hello, Kitty 16!']
     -- 03.growerindex
-  -- /3
+  -- /2
     -- 00.growerlog   ['Hello, Kitty 2!', 'Hello, Kitty 5!', 'Hello, Kitty 8!']
     -- 00.growerindex
     -- 03.growerlog   ['Hello, Kitty 11!', 'Hello, Kitty 14!', 'Hello, Kitty 17!']
     -- 03.growerindex
+```
+
+```shell
+$ S1 = subscribe -> rainbow
+$ S2 = subscribe -> rainbow
+
+// S1 linked partitions [0, 1]
+// S2 linked partitions [2]
+
+// batch size 3
+$ S1 -> read [ all from 0 and 1 partitions ]
+$ S2 -> read [ all from last partition ]
 ```
