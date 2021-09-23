@@ -2,6 +2,9 @@ package storage
 
 import (
 	"context"
+	"os"
+	"path"
+	"path/filepath"
 	"testing"
 	"time"
 )
@@ -11,7 +14,17 @@ func TestNewIsomorphicMemoryStorage(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		is := NewIsomorphicMemoryStorage(ctx)
+		tmpDir, err := os.Getwd()
+
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		tmpDir = path.Join(filepath.Dir(filepath.Dir(tmpDir)), "tmp")
+
+		is := NewIsomorphicMemoryStorage(ctx, IsomorphicMemoryConfig{
+			CommitDir: tmpDir,
+		})
 
 		t.Run("it should be create first topic and write it", func(t *testing.T) {
 			if err := is.NewTopic("rainbow", 2); err != nil {

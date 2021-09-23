@@ -8,6 +8,7 @@ import (
 	_const "github.com/zikwall/grower/pkg/const"
 	"github.com/zikwall/grower/pkg/storage/file"
 	"os"
+	"path"
 	"strings"
 	"sync"
 	"time"
@@ -30,15 +31,32 @@ func newTopicContext(ctx context.Context) *TopicContext {
 
 type WriterCallback = func(topic _const.Topic, partition _const.Partition) (*os.File, error)
 
-func buildDefaultWriterCallback() WriterCallback {
+func buildDefaultWriterCallback(commitDir string) WriterCallback {
 	return func(topic _const.Topic, partition _const.Partition) (*os.File, error) {
-		dir, err := os.Getwd()
+		dir, err := os.Stat(commitDir)
 		if err != nil {
 			return nil, err
 		}
 
-		return os.Create(fmt.Sprintf("%s/tmp/%s-%d.log", dir, topic, partition))
+		if !dir.IsDir() {
+			return nil, errors.New("oops... commit directory is not directory")
+		}
+
+		topicDir := path.Join(commitDir, topic)
+
+		if _, err := os.Stat(topicDir); os.IsNotExist(err) {
+			if err := os.Mkdir(topicDir, 0755); err != nil {
+				return nil, err
+			}
+		}
+
+		filepath := path.Join(topicDir, fmt.Sprintf("%d.growerlog", partition))
+		return os.Create(filepath)
 	}
+}
+
+type IsomorphicMemoryConfig struct {
+	CommitDir string
 }
 
 type IsomorphicMemoryStorage struct {
@@ -52,7 +70,7 @@ type IsomorphicMemoryStorage struct {
 	wg                   sync.WaitGroup
 }
 
-func NewIsomorphicMemoryStorage(ctx context.Context, wCb ...WriterCallback) *IsomorphicMemoryStorage {
+func NewIsomorphicMemoryStorage(ctx context.Context, cfg IsomorphicMemoryConfig) *IsomorphicMemoryStorage {
 	ctx, cancel := context.WithCancel(ctx)
 
 	is := &IsomorphicMemoryStorage{
@@ -62,11 +80,7 @@ func NewIsomorphicMemoryStorage(ctx context.Context, wCb ...WriterCallback) *Iso
 		topicsContext: map[_const.Topic]*TopicContext{},
 	}
 
-	if len(wCb) == 0 {
-		is.createWriterCallback = buildDefaultWriterCallback()
-	} else {
-		is.createWriterCallback = wCb[0]
-	}
+	is.createWriterCallback = buildDefaultWriterCallback(cfg.CommitDir)
 
 	go is.periodicallyCheckResources()
 	return is

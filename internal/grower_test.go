@@ -5,6 +5,9 @@ import (
 	"fmt"
 	_const "github.com/zikwall/grower/pkg/const"
 	"github.com/zikwall/grower/pkg/storage"
+	"os"
+	"path"
+	"path/filepath"
 	"testing"
 	"time"
 )
@@ -13,13 +16,13 @@ func TestNewGrower(t *testing.T) {
 	t.Run("it should be create new topic with listeners", func(t *testing.T) {
 		grower := NewGrower(context.Background(), &MockStorage{})
 
-		if err := grower.CreateTopic("rainbow", 2); err != nil {
+		if err := grower.CreateTopic("rainbow_II", 2); err != nil {
 			t.Fatal(err)
 		}
 
 		go func() {
 			for i := 0; i < 10; i++ {
-				grower.Write("rainbow", "_const.Message")
+				grower.Write("rainbow_II", "_const.Message")
 			}
 		}()
 
@@ -31,13 +34,25 @@ func TestNewGrower(t *testing.T) {
 	})
 
 	t.Run("it should be successful test subscriber and publisher", func(t *testing.T) {
-		grower := NewGrower(context.Background(), storage.NewIsomorphicMemoryStorage(context.Background()))
+		tmpDir, err := os.Getwd()
 
-		if err := grower.CreateTopic("rainbow", 2); err != nil {
+		if err != nil {
 			t.Fatal(err)
 		}
 
-		publish, err := grower.Publish("rainbow")
+		tmpDir = path.Join(filepath.Dir(tmpDir), "tmp")
+
+		grower := NewGrower(context.Background(), storage.NewIsomorphicMemoryStorage(
+			context.Background(), storage.IsomorphicMemoryConfig{
+				CommitDir: tmpDir,
+			},
+		))
+
+		if err := grower.CreateTopic("rainbow_II", 2); err != nil {
+			t.Fatal(err)
+		}
+
+		publish, err := grower.Publish("rainbow_II")
 
 		if err != nil {
 			t.Fatal(err)
@@ -45,12 +60,12 @@ func TestNewGrower(t *testing.T) {
 
 		var savedMessages []string
 
-		unsubscribe := grower.Subscribe("rainbow", "SOAP", func(messages ..._const.Message) {
+		unsubscribe := grower.Subscribe("rainbow_II", "SOAP", func(messages ..._const.Message) {
 			savedMessages = append(savedMessages, messages...)
 			fmt.Println("FIRST", messages)
 		})
 
-		unsubscribe2 := grower.Subscribe("rainbow", "SOAP", func(messages ..._const.Message) {
+		unsubscribe2 := grower.Subscribe("rainbow_II", "SOAP", func(messages ..._const.Message) {
 			savedMessages = append(savedMessages, messages...)
 			fmt.Println("SECOND", messages)
 		})
@@ -67,7 +82,7 @@ func TestNewGrower(t *testing.T) {
 		// NEW BALANCE map[770144581:[1 2]]
 		// NEW BALANCE map[770144581:[2] 816736747:[1]]
 		// NEW BALANCE map[770144581:[] 816736747:[2] 909188539:[1]]
-		unsubscribe3 := grower.Subscribe("rainbow", "SOAP", func(messages ..._const.Message) {
+		unsubscribe3 := grower.Subscribe("rainbow_II", "SOAP", func(messages ..._const.Message) {
 			savedMessages = append(savedMessages, messages...)
 			fmt.Println("THREE", messages)
 		})
