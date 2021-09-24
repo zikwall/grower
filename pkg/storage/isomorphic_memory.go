@@ -1,15 +1,10 @@
 package storage
 
 import (
-	"bufio"
 	"context"
 	"errors"
 	"fmt"
 	_const "github.com/zikwall/grower/pkg/const"
-	"github.com/zikwall/grower/pkg/storage/file"
-	"os"
-	"path"
-	"strings"
 	"sync"
 	"time"
 )
@@ -29,45 +24,19 @@ func newTopicContext(ctx context.Context) *TopicContext {
 	return topicContext
 }
 
-type WriterCallback = func(topic _const.Topic, partition _const.Partition) (*os.File, error)
-
-func buildDefaultWriterCallback(commitDir string) WriterCallback {
-	return func(topic _const.Topic, partition _const.Partition) (*os.File, error) {
-		dir, err := os.Stat(commitDir)
-		if err != nil {
-			return nil, err
-		}
-
-		if !dir.IsDir() {
-			return nil, errors.New("oops... commit directory is not directory")
-		}
-
-		topicDir := path.Join(commitDir, topic)
-
-		if _, err := os.Stat(topicDir); os.IsNotExist(err) {
-			if err := os.Mkdir(topicDir, 0755); err != nil {
-				return nil, err
-			}
-		}
-
-		filepath := path.Join(topicDir, fmt.Sprintf("%d.growerlog", partition))
-		return os.Create(filepath)
-	}
-}
-
 type IsomorphicMemoryConfig struct {
 	CommitDir string
 }
 
 type IsomorphicMemoryStorage struct {
-	ctx                  context.Context
-	cancel               context.CancelFunc
-	mu                   sync.RWMutex
-	memory               map[_const.Topic]map[_const.Partition][]_const.Message
-	descriptor           map[_const.Topic]map[_const.Partition]*os.File
-	topicsContext        map[_const.Topic]*TopicContext
-	createWriterCallback func(topic _const.Topic, partition _const.Partition) (*os.File, error)
-	wg                   sync.WaitGroup
+	ctx           context.Context
+	cancel        context.CancelFunc
+	mu            sync.RWMutex
+	memory        map[_const.Topic]map[_const.Partition][]_const.Message
+	descriptors   map[_const.Topic]map[_const.Partition]Descriptor
+	topicsContext map[_const.Topic]*TopicContext
+	wg            sync.WaitGroup
+	commitDir     string
 }
 
 func NewIsomorphicMemoryStorage(ctx context.Context, cfg IsomorphicMemoryConfig) *IsomorphicMemoryStorage {
@@ -76,11 +45,10 @@ func NewIsomorphicMemoryStorage(ctx context.Context, cfg IsomorphicMemoryConfig)
 	is := &IsomorphicMemoryStorage{
 		ctx: ctx, cancel: cancel, wg: sync.WaitGroup{}, mu: sync.RWMutex{},
 		memory:        map[_const.Topic]map[_const.Partition][]_const.Message{},
-		descriptor:    map[_const.Topic]map[_const.Partition]*os.File{},
+		descriptors:   map[_const.Topic]map[_const.Partition]Descriptor{},
 		topicsContext: map[_const.Topic]*TopicContext{},
+		commitDir:     cfg.CommitDir,
 	}
-
-	is.createWriterCallback = buildDefaultWriterCallback(cfg.CommitDir)
 
 	go is.periodicallyCheckResources()
 	return is
@@ -104,6 +72,8 @@ func (is *IsomorphicMemoryStorage) periodicallyCheckResources() {
 				if is.HasTopic(topic) {
 					is.mu.Lock()
 					delete(is.topicsContext, topic)
+					delete(is.memory, topic)
+					delete(is.descriptors, topic)
 					is.mu.Unlock()
 				}
 			}
@@ -111,20 +81,8 @@ func (is *IsomorphicMemoryStorage) periodicallyCheckResources() {
 	}
 }
 
-func (is *IsomorphicMemoryStorage) Read(
-	topic _const.Topic, partition _const.Partition, from, to int64,
-) ([]_const.Message, error) {
-	is.mu.RLock()
-	descriptor := is.descriptor[topic][partition]
-	is.mu.RUnlock()
-
-	messages, err := file.Read(descriptor, from, to)
-
-	if err != nil {
-		return nil, err
-	}
-
-	return messages, nil
+func (is *IsomorphicMemoryStorage) Descriptor(topic _const.Topic, partition _const.Partition) Descriptor {
+	return is.descriptors[topic][partition]
 }
 
 func (is *IsomorphicMemoryStorage) Write(topic _const.Topic, partition _const.Partition, message _const.Message) {
@@ -153,21 +111,15 @@ func (is *IsomorphicMemoryStorage) NewTopic(topic _const.Topic, partitions ...in
 
 	is.mu.Lock()
 	is.memory[topic] = map[_const.Partition][]_const.Message{}
-	is.descriptor[topic] = map[_const.Partition]*os.File{}
+	is.descriptors[topic] = map[_const.Partition]Descriptor{}
 	is.topicsContext[topic] = newTopicContext(is.ctx)
 	is.mu.Unlock()
 
 	// Инициализуруем ресурсы: хранилище в памяти, а также объекты данных (файлы), разделенные по партициям
 	for partition := 1; partition <= parts; partition++ {
-		readWrite, err := is.createWriterCallback(topic, partition)
-
-		if err != nil {
-			return err
-		}
-
 		is.mu.Lock()
 		is.memory[topic][partition] = []_const.Message{}
-		is.descriptor[topic][partition] = readWrite
+		is.descriptors[topic][partition] = NewFileDescriptor(is.commitDir, topic, partition)
 		is.mu.Unlock()
 
 		is.wg.Add(1)
@@ -187,10 +139,9 @@ func (is *IsomorphicMemoryStorage) HasTopic(topic _const.Topic) bool {
 func (is *IsomorphicMemoryStorage) DeleteTopic(topic _const.Topic) error {
 	is.mu.Lock()
 	is.topicsContext[topic].cancel()
-
-	delete(is.memory, topic)
-	delete(is.descriptor, topic)
-
+	for _, descriptor := range is.descriptors[topic] {
+		_ = descriptor.Close()
+	}
 	is.mu.Unlock()
 
 	return nil
@@ -205,8 +156,8 @@ func (is *IsomorphicMemoryStorage) Close() error {
 		delete(is.memory, k)
 	}
 
-	for k := range is.descriptor {
-		delete(is.descriptor, k)
+	for k := range is.descriptors {
+		delete(is.descriptors, k)
 	}
 
 	for k := range is.topicsContext {
@@ -223,46 +174,41 @@ func (is *IsomorphicMemoryStorage) clean(topic _const.Topic, partition _const.Pa
 	is.mu.Unlock()
 }
 
-func (is *IsomorphicMemoryStorage) flush(topic _const.Topic, partition _const.Partition, w *bufio.Writer) {
+func (is *IsomorphicMemoryStorage) flush(topic _const.Topic, partition _const.Partition) {
 	is.mu.Lock()
 
-	var data string
+	var data []string
 	if messages := is.memory[topic][partition]; len(messages) > 0 {
-		data = strings.Join(messages, "\n")
+		data = messages
 		is.memory[topic][partition] = is.memory[topic][partition][:0]
 	}
 
 	is.mu.Unlock()
 
-	if data != "" {
-		_, _ = w.WriteString(data)
-		_, _ = w.WriteString("\n")
-		_ = w.Flush()
+	if len(data) > 0 {
+		descriptor := is.Descriptor(topic, partition)
+		descriptor.Write(data)
 	}
 }
 
 func (is *IsomorphicMemoryStorage) gc(topic _const.Topic, partition _const.Partition) {
 	is.mu.RLock()
-	descriptor := is.descriptor[topic][partition]
 	topicContext := is.topicsContext[topic]
 	is.mu.RUnlock()
-
-	writer := bufio.NewWriter(descriptor)
 	ticker := time.NewTicker(flushInterval)
 
 	defer fmt.Printf("stop isomorphic GC for topic %s and partition %d\n", topic, partition)
 	for {
 		select {
 		case <-topicContext.ctx.Done():
-			is.flush(topic, partition, writer)
+			is.flush(topic, partition)
 			is.clean(topic, partition)
-			_ = descriptor.Close()
 			ticker.Stop()
 			is.wg.Done()
 
 			return
 		case <-ticker.C:
-			is.flush(topic, partition, writer)
+			is.flush(topic, partition)
 		}
 	}
 }

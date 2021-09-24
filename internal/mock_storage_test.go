@@ -3,6 +3,7 @@ package internal
 import (
 	"fmt"
 	_const "github.com/zikwall/grower/pkg/const"
+	"github.com/zikwall/grower/pkg/storage"
 )
 
 type MockStorage struct{}
@@ -28,5 +29,9 @@ func (mc MockStorage) Read(_ _const.Topic, _ _const.Partition, _, _ int64) ([]_c
 }
 
 func (mc MockStorage) Close() error {
+	return nil
+}
+
+func (mc MockStorage) Descriptor(_ _const.Topic, _ _const.Partition) storage.Descriptor {
 	return nil
 }
