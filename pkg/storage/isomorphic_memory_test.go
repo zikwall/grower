@@ -48,7 +48,7 @@ func TestNewIsomorphicMemoryStorage(t *testing.T) {
 			}
 
 			t.Run("it should be successful read from storage", func(t *testing.T) {
-				messages, err := is.Read("rainbow", 2, 0, 3)
+				messages, err := is.Descriptor("rainbow", 2).Read(0, 3)
 
 				if err != nil {
 					t.Fatal(err)
@@ -58,7 +58,7 @@ func TestNewIsomorphicMemoryStorage(t *testing.T) {
 					t.Fatalf("Failed, expect 2 items, give %d", len(messages))
 				}
 
-				messages, err = is.Read("rainbow", 1, 0, 1)
+				messages, err = is.Descriptor("rainbow", 1).Read(0, 1)
 
 				if err != nil {
 					t.Fatal(err)

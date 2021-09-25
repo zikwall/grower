@@ -77,7 +77,7 @@ func (g *Grower) Subscribe(
 
 				for _, partition := range partitionsSnapshot {
 					offset := offsetsSnapshot[partition] + batchSize
-					messages, err := g.storage.Read(topic, partition, offsetsSnapshot[partition]+1, offset)
+					messages, err := g.storage.Descriptor(topic, partition).Read(offsetsSnapshot[partition]+1, offset)
 
 					if err != nil {
 						// send error to chan of errors
