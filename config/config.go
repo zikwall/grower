@@ -1,5 +1,11 @@
 package config
 
+import (
+	"bytes"
+	"gopkg.in/yaml.v3"
+	"os"
+)
+
 type Config struct {
 	Nginx  Nginx  `yaml:"nginx"`
 	Scheme Scheme `yaml:"scheme"`
@@ -15,5 +21,27 @@ type Nginx struct {
 }
 
 type Scheme struct {
-	Columns map[string]string
+	Columns   map[string]string
+	LogsTable string
+}
+
+func (s *Scheme) MapKeys() []string {
+	keys := make([]string, 0, len(s.Columns))
+	for key := range s.Columns {
+		keys = append(keys, key)
+	}
+	return keys
+}
+
+func New(filepath string) (*Config, error) {
+	content, err := os.ReadFile(filepath)
+	if err != nil {
+		return nil, err
+	}
+	config := &Config{}
+	decoder := yaml.NewDecoder(bytes.NewReader(content))
+	if err := decoder.Decode(&config); err != nil {
+		return nil, err
+	}
+	return config, nil
 }

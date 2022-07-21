@@ -8,6 +8,7 @@ nginx:
     custom_time_field: Datetime
   log_format: '$remote_addr - $remote_user [$time_local] "$request" $status $bytes_sent "$http_referer" "$http_user_agent" $custom_field <$custom_time_field>'
 scheme:
+  logs_table: 'table_name'
   columns:
     remote_addr: remote_addr
     remote_user: remote_user
