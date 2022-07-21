@@ -10,9 +10,9 @@ type Handler interface {
 }
 
 type RowHandler struct {
-	template              *nginx.Template
-	typeCaster            nginx.TypeCaster
-	rewriteNginxLocalTime bool
+	template   *nginx.Template
+	typeCaster nginx.TypeCaster
+	columns    []string
 }
 
 func (r *RowHandler) Handle(content string) (cx.Vector, error) {
@@ -20,10 +20,13 @@ func (r *RowHandler) Handle(content string) (cx.Vector, error) {
 	if err != nil {
 		return nil, err
 	}
-	fields := entry.Fields()
-	vector := make(cx.Vector, 0, len(fields))
-	for key, value := range fields {
-		casted, err := r.typeCaster.TryCast(key, value)
+	vector := make(cx.Vector, 0, len(r.columns))
+	for _, column := range r.columns {
+		value, err := entry.Field(column)
+		if err != nil {
+			return nil, err
+		}
+		casted, err := r.typeCaster.TryCast(column, value)
 		if err != nil {
 			return nil, err
 		}
@@ -32,6 +35,10 @@ func (r *RowHandler) Handle(content string) (cx.Vector, error) {
 	return vector, nil
 }
 
-func NewRowHandler(rewriteTime bool) *RowHandler {
-	return &RowHandler{rewriteNginxLocalTime: rewriteTime}
+func NewRowHandler(columns []string, template *nginx.Template, typeCaster nginx.TypeCaster) *RowHandler {
+	return &RowHandler{
+		columns:    columns,
+		template:   template,
+		typeCaster: typeCaster,
+	}
 }

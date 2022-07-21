@@ -60,22 +60,22 @@ func (c *caster) TryCast(key, value string) (interface{}, error) {
 		return value, nil
 	case BytesSent, BodyBytesSent, ConnectionsWaiting, ConnectionsActive, Status, Connection, RequestLength:
 		if value == "" {
-			return 0, nil
+			return int32(0), nil
 		}
 		val, err := strconv.Atoi(value)
 		if err != nil {
-			return 0, ErrCanNotParseInt
+			return int32(0), ErrCanNotParseInt
 		}
-		return val, nil
+		return int32(val), nil
 	case RequestTime, UpstreamConnectTime, UpstreamHeaderTime, UpstreamResponseTime, MSec:
 		if value == "" {
-			return 0, nil
+			return float32(0), nil
 		}
 		val, err := strconv.ParseFloat(value, 32)
 		if err != nil {
-			return 0, ErrCanNotParseFloat32
+			return float32(0), ErrCanNotParseFloat32
 		}
-		return val, nil
+		return float32(val), nil
 	}
 	if c.cfg.CustomCastsEnable && c.hasCustoms {
 		if custom, ok := c.cfg.CustomCasts[key]; ok {
@@ -84,13 +84,13 @@ func (c *caster) TryCast(key, value string) (interface{}, error) {
 				return value, nil
 			case IntegerCustom:
 				if value == "" {
-					return 0, nil
+					return int32(0), nil
 				}
 				val, err := strconv.Atoi(value)
 				if err != nil {
-					return 0, ErrCanNotParseFloat32
+					return int32(0), ErrCanNotParseFloat32
 				}
-				return val, nil
+				return int32(val), nil
 			case DatetimeCustom:
 				if value == "" {
 					return time.Now(), nil

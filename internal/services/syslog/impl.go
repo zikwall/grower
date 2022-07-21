@@ -3,6 +3,7 @@ package syslog
 import (
 	"context"
 	"fmt"
+	"github.com/zikwall/ck-nginx/pkg/nginx"
 
 	"github.com/ClickHouse/clickhouse-go/v2"
 	clickhousebuffer "github.com/zikwall/clickhouse-buffer/v3"
@@ -54,16 +55,26 @@ func New(ctx context.Context, opt *Opt) (*Syslog, error) {
 			SetDebugMode(opt.SyslogConfig.Debug).
 			SetRetryIsEnabled(true),
 	)
+	frizzedColumns := opt.Config.Scheme.MapKeys()
 	s := &Syslog{
 		bufferWrapper: wrap.NewBufferWrapper(ch),
 		clientWrapper: wrap.NewClientWrapper(client),
-		rowHandler:    handler.NewRowHandler(false),
-		syslog:        NewServer(opt.SyslogConfig),
+		rowHandler: handler.NewRowHandler(
+			frizzedColumns,
+			nginx.NewTemplate(opt.Config.Nginx.LogFormat),
+			nginx.NewTypeCaster(&nginx.CasterCfg{
+				CustomCasts:       opt.Config.Nginx.LogCustomCasts,
+				LocalTimeFormat:   opt.Config.Nginx.LogTimeFormat,
+				CustomCastsEnable: opt.Config.Nginx.LogCustomCastsEnable,
+				RemoveHyphen:      opt.Config.Nginx.LogRemoveHyphen,
+			}),
+		),
+		syslog: NewServer(opt.SyslogConfig),
 	}
 	s.Impl = drop.NewContext(ctx)
 	s.AddDroppers(s.clientWrapper, s.bufferWrapper)
 	writerAPI := s.Buffer().Writer(
-		cx.NewView(opt.Config.Scheme.LogsTable, opt.Config.Scheme.MapKeys()),
+		cx.NewView(opt.Config.Scheme.LogsTable, frizzedColumns),
 		cxmem.NewBuffer(
 			s.Buffer().Options().BatchSize(),
 		),

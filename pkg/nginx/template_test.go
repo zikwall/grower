@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	caseOne = `114.119.133.192 - - [21/Jul/2022:00:30:43 +0300] "GET /sito/wp-includes/wlwmanifest.xml HTTP/1.1" 444 9 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/78.0.3904.108 Safari/537.36" 10 <2022-07-21T00:30:43>`
+	caseOne = `114.119.133.192 - - [21/Jul/2022:00:30:43 +0300] "GET /sito/wp-includes/wlwmanifest.xml HTTP/1.1" 444 9 100000.14 "GET" "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/78.0.3904.108 Safari/537.36" ON 10 <2022-07-21T00:30:43>`
 )
 
 var (
@@ -28,8 +28,11 @@ var cases = map[string]map[string]interface{}{
 		"request":           "GET /sito/wp-includes/wlwmanifest.xml HTTP/1.1",
 		"status":            444,
 		"bytes_sent":        9,
+		"request_time":      100000.140625,
+		"request_method":    "GET",
 		"http_referer":      "",
 		"http_user_agent":   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/78.0.3904.108 Safari/537.36",
+		"https":             "ON",
 		"custom_field":      10,
 		"custom_time_field": caseOneCustomTime,
 	},
