@@ -181,7 +181,7 @@ func Main(ctx *cli.Context) error {
 	if ctx.Bool("run-http-server") {
 		go func() {
 			app := fiber.New(fiber.Config{
-				ServerHeader: "Lime Syslog Server",
+				ServerHeader: "CK-NGINX: Syslog Server",
 			})
 			app.Get("/live", func(ctx *fiber.Ctx) error {
 				return ctx.Status(200).SendString("Alive")
