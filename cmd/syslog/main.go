@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"github.com/zikwall/ck-nginx/config"
 	"log"
 	"os"
 	"runtime"
@@ -12,11 +11,13 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/urfave/cli/v2"
 
+	"github.com/zikwall/ck-nginx/config"
 	"github.com/zikwall/ck-nginx/internal/services/syslog"
 	stdout "github.com/zikwall/ck-nginx/pkg/log"
 	"github.com/zikwall/ck-nginx/pkg/signal"
 )
 
+// nolint:funlen // it's not important here
 func main() {
 	application := &cli.App{
 		Flags: []cli.Flag{

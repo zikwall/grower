@@ -36,6 +36,7 @@ var (
 	ErrCanNotParseFloat32 = errors.New("can't parse float32 value")
 )
 
+// nolint:gocyclo // cyclomatic complexity not important here
 func (c *caster) TryCast(key, value string) (interface{}, error) {
 	if isHyphen(value) {
 		value = ""
@@ -62,6 +63,7 @@ func (c *caster) TryCast(key, value string) (interface{}, error) {
 		if value == "" {
 			return int32(0), nil
 		}
+		// nolint:gosec // it's OK
 		val, err := strconv.Atoi(value)
 		if err != nil {
 			return int32(0), ErrCanNotParseInt
@@ -86,6 +88,7 @@ func (c *caster) TryCast(key, value string) (interface{}, error) {
 				if value == "" {
 					return int32(0), nil
 				}
+				// nolint:gosec // it's OK
 				val, err := strconv.Atoi(value)
 				if err != nil {
 					return int32(0), ErrCanNotParseFloat32

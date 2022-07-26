@@ -22,7 +22,7 @@ func (e *LogEntry) Field(name string) (value string, err error) {
 	return
 }
 
-func (e *LogEntry) SetField(name string, value string) {
+func (e *LogEntry) SetField(name, value string) {
 	e.fields[name] = value
 }
 
