@@ -28,12 +28,12 @@ type Scheme struct {
 	LogsTable string            `yaml:"logs_table"`
 }
 
-func (s *Scheme) MapKeys() []string {
+func (s *Scheme) MapKeys() (columns []string, scheme map[string]string) {
 	keys := make([]string, 0, len(s.Columns))
 	for key := range s.Columns {
 		keys = append(keys, key)
 	}
-	return keys
+	return keys, s.Columns
 }
 
 func New(filepath string) (*Config, error) {

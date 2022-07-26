@@ -13,6 +13,7 @@ type RowHandler struct {
 	template   *nginx.Template
 	typeCaster nginx.TypeCaster
 	columns    []string
+	scheme     map[string]string
 }
 
 func (r *RowHandler) Handle(content string) (cx.Vector, error) {
@@ -22,7 +23,8 @@ func (r *RowHandler) Handle(content string) (cx.Vector, error) {
 	}
 	vector := make(cx.Vector, 0, len(r.columns))
 	for _, column := range r.columns {
-		value, err := entry.Field(column)
+		columnAlias := r.scheme[column]
+		value, err := entry.Field(columnAlias)
 		if err != nil {
 			return nil, err
 		}
@@ -35,9 +37,15 @@ func (r *RowHandler) Handle(content string) (cx.Vector, error) {
 	return vector, nil
 }
 
-func NewRowHandler(columns []string, template *nginx.Template, typeCaster nginx.TypeCaster) *RowHandler {
+func NewRowHandler(
+	columns []string,
+	scheme map[string]string,
+	template *nginx.Template,
+	typeCaster nginx.TypeCaster,
+) *RowHandler {
 	return &RowHandler{
 		columns:    columns,
+		scheme:     scheme,
 		template:   template,
 		typeCaster: typeCaster,
 	}

@@ -56,12 +56,12 @@ func New(ctx context.Context, opt *Opt) (*Syslog, error) {
 			SetDebugMode(opt.SyslogConfig.Debug).
 			SetRetryIsEnabled(true),
 	)
-	frizzedColumns := opt.Config.Scheme.MapKeys()
+	columns, scheme := opt.Config.Scheme.MapKeys()
 	s := &Syslog{
 		bufferWrapper: wrap.NewBufferWrapper(ch),
 		clientWrapper: wrap.NewClientWrapper(client),
 		rowHandler: handler.NewRowHandler(
-			frizzedColumns,
+			columns, scheme,
 			nginx.NewTemplate(opt.Config.Nginx.LogFormat),
 			nginx.NewTypeCaster(&nginx.CasterCfg{
 				CustomCasts:       opt.Config.Nginx.LogCustomCasts,
@@ -75,7 +75,7 @@ func New(ctx context.Context, opt *Opt) (*Syslog, error) {
 	s.Impl = drop.NewContext(ctx)
 	s.AddDroppers(s.clientWrapper, s.bufferWrapper)
 	writerAPI := s.Buffer().Writer(
-		cx.NewView(opt.Config.Scheme.LogsTable, frizzedColumns),
+		cx.NewView(opt.Config.Scheme.LogsTable, columns),
 		cxmem.NewBuffer(
 			s.Buffer().Options().BatchSize(),
 		),
