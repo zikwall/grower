@@ -32,52 +32,35 @@ type caster struct {
 
 var (
 	ErrCanNotParseTime    = errors.New("can't parse datetime string")
-	ErrCanNotParseInt     = errors.New("can't parse integer value")
+	ErrCanNotParseInt32   = errors.New("can't parse int32 value")
+	ErrCanNotParseUInt16  = errors.New("can't parse uint16 value")
+	ErrCanNotParseUInt32  = errors.New("can't parse uint32 value")
 	ErrCanNotParseFloat32 = errors.New("can't parse float32 value")
 )
 
-// nolint:gocyclo // cyclomatic complexity not important here
 func (c *caster) TryCast(key, value string) (interface{}, error) {
 	if isHyphen(value) {
 		value = ""
 	}
 	switch key {
 	case TimeLocal, TimeISO8601:
-		if value == "" {
-			return time.Now(), nil
-		}
 		var layout string
 		if key == TimeISO8601 {
 			layout = time.RFC3339
 		} else {
 			layout = c.cfg.LocalTimeFormat
 		}
-		parsedTime, err := time.Parse(layout, value)
-		if err != nil {
-			return time.Now(), ErrCanNotParseTime
-		}
-		return parsedTime, nil
+		return parseDateTime(value, layout)
+	case Status:
+		return parseUInt16(value)
+	case BytesSent, BodyBytesSent:
+		return parseUInt32(value)
 	case RemoteAddr, RemoteUser, Request, HTTPReferer, HTTPUserAgent, RequestMethod, HTTPS:
 		return value, nil
-	case BytesSent, BodyBytesSent, ConnectionsWaiting, ConnectionsActive, Status, Connection, RequestLength:
-		if value == "" {
-			return int32(0), nil
-		}
-		// nolint:gosec // it's OK
-		val, err := strconv.Atoi(value)
-		if err != nil {
-			return int32(0), ErrCanNotParseInt
-		}
-		return int32(val), nil
+	case ConnectionsWaiting, ConnectionsActive, Connection, RequestLength:
+		return parseInt32(value)
 	case RequestTime, UpstreamConnectTime, UpstreamHeaderTime, UpstreamResponseTime, MSec:
-		if value == "" {
-			return float32(0), nil
-		}
-		val, err := strconv.ParseFloat(value, 32)
-		if err != nil {
-			return float32(0), ErrCanNotParseFloat32
-		}
-		return float32(val), nil
+		return parseFloat32(value)
 	}
 	if c.cfg.CustomCastsEnable && c.hasCustoms {
 		if custom, ok := c.cfg.CustomCasts[key]; ok {
@@ -85,24 +68,9 @@ func (c *caster) TryCast(key, value string) (interface{}, error) {
 			case StringCustom:
 				return value, nil
 			case IntegerCustom:
-				if value == "" {
-					return int32(0), nil
-				}
-				// nolint:gosec // it's OK
-				val, err := strconv.Atoi(value)
-				if err != nil {
-					return int32(0), ErrCanNotParseFloat32
-				}
-				return int32(val), nil
+				return parseInt32(value)
 			case DatetimeCustom:
-				if value == "" {
-					return time.Now(), nil
-				}
-				parsedTime, err := time.Parse(defaultDatetimeFormat, value)
-				if err != nil {
-					return parsedTime, ErrCanNotParseTime
-				}
-				return parsedTime, nil
+				return parseDateTime(value, defaultDatetimeFormat)
 			}
 		}
 	}
@@ -116,6 +84,58 @@ func isHyphen(value string) bool {
 		return true
 	}
 	return false
+}
+
+func parseUInt16(value string) (uint16, error) {
+	val, err := strconv.ParseUint(value, 10, 16)
+	if err != nil {
+		return uint16(0), ErrCanNotParseUInt16
+	}
+	return uint16(val), nil
+}
+
+func parseUInt32(value string) (uint32, error) {
+	if value == "" {
+		return uint32(0), nil
+	}
+	val, err := strconv.ParseUint(value, 10, 32)
+	if err != nil {
+		return uint32(0), ErrCanNotParseUInt32
+	}
+	return uint32(val), nil
+}
+
+func parseInt32(value string) (int32, error) {
+	if value == "" {
+		return int32(0), nil
+	}
+	val, err := strconv.ParseInt(value, 10, 32)
+	if err != nil {
+		return int32(0), ErrCanNotParseInt32
+	}
+	return int32(val), nil
+}
+
+func parseFloat32(value string) (float32, error) {
+	if value == "" {
+		return float32(0), nil
+	}
+	val, err := strconv.ParseFloat(value, 32)
+	if err != nil {
+		return float32(0), ErrCanNotParseFloat32
+	}
+	return float32(val), nil
+}
+
+func parseDateTime(value, format string) (time.Time, error) {
+	if value == "" {
+		return time.Now(), nil
+	}
+	parsedTime, err := time.Parse(format, value)
+	if err != nil {
+		return parsedTime, ErrCanNotParseTime
+	}
+	return parsedTime, nil
 }
 
 func NewTypeCaster(cfg *CasterCfg) TypeCaster {
