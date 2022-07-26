@@ -5,6 +5,7 @@ import (
 	"github.com/zikwall/ck-nginx/config"
 	"log"
 	"os"
+	"runtime"
 	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2"
@@ -73,6 +74,13 @@ func main() {
 				Required: false,
 				Value:    2000,
 				EnvVars:  []string{"BUFFER_FLUSH_INTERVAL"},
+			},
+			&cli.IntFlag{
+				Name:     "parallelism",
+				Usage:    "Number of threads processing logs, default num CPU",
+				Required: false,
+				Value:    runtime.NumCPU(),
+				EnvVars:  []string{"PARALLELISM"},
 			},
 			&cli.StringSliceFlag{
 				Name:     "clickhouse-host",
@@ -152,6 +160,7 @@ func Main(ctx *cli.Context) error {
 			TCP:              ctx.String("syslog-tcp-address"),
 			BufSize:          ctx.Uint("buffer-size"),
 			BufFlushInterval: ctx.Uint("buffer-flush-interval"),
+			Parallelism:      ctx.Int("parallelism"),
 			Debug:            ctx.Bool("debug"),
 		},
 		Config: yamlConfig,

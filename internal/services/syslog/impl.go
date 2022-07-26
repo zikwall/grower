@@ -3,7 +3,6 @@ package syslog
 import (
 	"context"
 	"fmt"
-	"github.com/zikwall/ck-nginx/pkg/nginx"
 
 	"github.com/ClickHouse/clickhouse-go/v2"
 	clickhousebuffer "github.com/zikwall/clickhouse-buffer/v3"
@@ -16,6 +15,7 @@ import (
 	"github.com/zikwall/ck-nginx/pkg/drop"
 	"github.com/zikwall/ck-nginx/pkg/handler"
 	"github.com/zikwall/ck-nginx/pkg/log"
+	"github.com/zikwall/ck-nginx/pkg/nginx"
 	"github.com/zikwall/ck-nginx/pkg/wrap"
 )
 
@@ -40,6 +40,7 @@ type Cfg struct {
 	TCP              string
 	BufSize          uint
 	BufFlushInterval uint
+	Parallelism      int
 	Debug            bool
 }
 
@@ -97,7 +98,7 @@ func (s *Syslog) Context() context.Context {
 }
 
 func (s *Syslog) Await() error {
-	return s.syslog.Await()
+	return s.syslog.Await(s.Context())
 }
 
 func (s *Syslog) Buffer() clickhousebuffer.Client {
