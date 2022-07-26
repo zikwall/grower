@@ -1,6 +1,6 @@
 package nginx
 
-// TimeLocal Time constants
+// TimeLocal, TimeISO8601 Time constants
 const (
 	TimeLocal   = "time_local"
 	TimeISO8601 = "time_iso8601"
@@ -19,14 +19,20 @@ const (
 
 // Integer constants
 const (
-	BytesSent          = "bytes_sent"
-	BodyBytesSent      = "body_bytes_sent"
 	ConnectionsWaiting = "connections_waiting"
 	ConnectionsActive  = "connections_active"
-	Status             = "status"
 	Connection         = "connection"
 	RequestLength      = "request_length"
 )
+
+// Unsigned Integer32 constants
+const (
+	BytesSent     = "bytes_sent"
+	BodyBytesSent = "body_bytes_sent"
+)
+
+// Status Unsigned Integer16 constant
+const Status = "status"
 
 // Float32 constants
 const (
