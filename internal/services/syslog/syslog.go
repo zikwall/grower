@@ -78,9 +78,10 @@ func (s *Server) Await(ctx context.Context) error {
 }
 
 func (s *Server) Drop() error {
+	err := s.server.Kill()
 	close(s.channel)
 	s.wg.Wait()
-	return s.server.Kill()
+	return err
 }
 
 func (s *Server) DropMsg() string {
