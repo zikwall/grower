@@ -49,15 +49,15 @@ func New(ctx context.Context, opt *Opt) (*Syslog, error) {
 	if err != nil {
 		return nil, err
 	}
-	client := clickhousebuffer.NewClientWithOptions(ctx, ch,
-		clickhousebuffer.DefaultOptions().
-			SetFlushInterval(opt.SyslogConfig.BufFlushInterval).
-			SetBatchSize(opt.SyslogConfig.BufSize+1).
-			SetDebugMode(opt.SyslogConfig.Debug).
-			SetRetryIsEnabled(true),
+	client := clickhousebuffer.NewClientWithOptions(ctx, ch, clickhousebuffer.DefaultOptions().
+		SetFlushInterval(opt.SyslogConfig.BufFlushInterval).
+		SetBatchSize(opt.SyslogConfig.BufSize+1).
+		SetDebugMode(opt.SyslogConfig.Debug).
+		SetRetryIsEnabled(true),
 	)
 	columns, scheme := opt.Config.Scheme.MapKeys()
 	s := &Syslog{
+		Impl:          drop.NewContext(ctx),
 		bufferWrapper: wrap.NewBufferWrapper(ch),
 		clientWrapper: wrap.NewClientWrapper(client),
 		rowHandler: handler.NewRowHandler(
@@ -72,8 +72,11 @@ func New(ctx context.Context, opt *Opt) (*Syslog, error) {
 		),
 		syslog: NewServer(opt.SyslogConfig),
 	}
-	s.Impl = drop.NewContext(ctx)
-	s.AddDroppers(s.clientWrapper, s.bufferWrapper)
+	s.AddDroppers(
+		s.syslog,
+		s.clientWrapper,
+		s.bufferWrapper,
+	)
 	writerAPI := s.Buffer().Writer(
 		cx.NewView(opt.Config.Scheme.LogsTable, columns),
 		cxmem.NewBuffer(
@@ -97,8 +100,8 @@ func (s *Syslog) Context() context.Context {
 	return s.Impl.Context()
 }
 
-func (s *Syslog) Await() error {
-	return s.syslog.Await(s.Context())
+func (s *Syslog) Await(ctx context.Context) error {
+	return s.syslog.Await(ctx)
 }
 
 func (s *Syslog) Buffer() clickhousebuffer.Client {

@@ -31,6 +31,10 @@ func (s *Server) SetHandler(handler Handler) {
 }
 
 func (s *Server) Await(ctx context.Context) error {
+	defer func() {
+		close(s.channel)
+		log.Info("syslog awaiter successfully finished")
+	}()
 	for _, listener := range s.cfg.Listeners {
 		switch listener {
 		case ListenerTCP:
@@ -71,21 +75,26 @@ func (s *Server) Await(ctx context.Context) error {
 	if err := s.server.Boot(); err != nil {
 		return err
 	}
-	log.Info("SYSLOG SERVER RUN")
+	log.Info("syslog server is ready to receive messages...")
 	s.server.Wait()
-	log.Info("SYSLOG SERVER STOP")
 	return nil
 }
 
+// Drop method implements drop.Drop interface
+// Drop method cleans up all resources, closes channels and waits for completion of all goroutines
 func (s *Server) Drop() error {
+	// first, stop syslog daemon to avoid cases when writing to a closed channel will be performed
 	err := s.server.Kill()
-	close(s.channel)
+	// finally, waiting for the completion of all goroutines
 	s.wg.Wait()
+	// return an error, if any
 	return err
 }
 
+// DropMsg method implements drop.Debug interface
+// DropMsg writes to log fact that Syslog was successfully destroyed
 func (s *Server) DropMsg() string {
-	return "kill syslog server"
+	return "syslog server was successfully destroyed"
 }
 
 func NewServer(cfg *Cfg) *Server {

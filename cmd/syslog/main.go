@@ -179,6 +179,7 @@ func Main(ctx *cli.Context) error {
 		stdout.Info("received a system signal to shut down SYSLOG server, start the shutdown process..")
 	})
 	if ctx.Bool("run-http-server") {
+		// add metrics
 		go func() {
 			app := fiber.New(fiber.Config{
 				ServerHeader: "CK-NGINX: Syslog Server",
@@ -199,11 +200,10 @@ func Main(ctx *cli.Context) error {
 		}()
 	}
 	go func() {
-		if err := instance.Await(); err != nil {
+		if err := instance.Await(instance.Context()); err != nil {
 			stop(err)
 		}
-		stdout.Info("stop syslog awaiter")
 	}()
-	stdout.Info("Congratulations, the Syslog service has been successfully launched")
+	stdout.Info("congratulations, the Syslog service has been successfully launched")
 	return await()
 }
