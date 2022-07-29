@@ -78,8 +78,15 @@ func TestTemplate(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				if castedValue != expectedValue {
-					t.Fatalf("failed for key %s, expect %v, receive %v", key, expectedValue, castedValue)
+				switch it := castedValue.(type) {
+				case time.Time:
+					if !it.Truncate(time.Second).Equal(expectedValue.(time.Time).Truncate(time.Second)) {
+						t.Fatalf("failed for key %s, expect %v, receive %v", key, expectedValue, castedValue)
+					}
+				default:
+					if castedValue != expectedValue {
+						t.Fatalf("failed for key %s, expect %v, receive %v", key, expectedValue, castedValue)
+					}
 				}
 			}
 		}
