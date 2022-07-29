@@ -155,14 +155,18 @@ func Main(ctx *cli.Context) error {
 			Debug: ctx.Bool("debug"),
 		},
 		SyslogConfig: &syslog.Cfg{
-			Listeners:        ctx.StringSlice("listeners"),
-			Unix:             ctx.String("syslog-unix-socket"),
-			UPD:              ctx.String("syslog-udp-address"),
-			TCP:              ctx.String("syslog-tcp-address"),
-			BufSize:          ctx.Uint("buffer-size"),
-			BufFlushInterval: ctx.Uint("buffer-flush-interval"),
-			Parallelism:      ctx.Int("parallelism"),
-			Debug:            ctx.Bool("debug"),
+			Listeners: ctx.StringSlice("listeners"),
+			Unix:      ctx.String("syslog-unix-socket"),
+			UPD:       ctx.String("syslog-udp-address"),
+			TCP:       ctx.String("syslog-tcp-address"),
+			Runtime: config.Runtime{
+				Parallelism: ctx.Int("parallelism"),
+				Debug:       ctx.Bool("debug"),
+			},
+			Buffer: config.Buffer{
+				BufSize:          ctx.Uint("buffer-size"),
+				BufFlushInterval: ctx.Uint("buffer-flush-interval"),
+			},
 		},
 		Config: yamlConfig,
 	})

@@ -29,3 +29,7 @@ func Infof(message string, v ...interface{}) {
 func Warning(message interface{}) {
 	log.Printf("%s: %v \n", Colored("[CK-NGINX WARNING]", Yellow), message)
 }
+
+func Warningf(message string, v ...interface{}) {
+	Warning(fmt.Sprintf(message, v...))
+}

@@ -34,14 +34,12 @@ type Opt struct {
 }
 
 type Cfg struct {
-	Listeners        []string
-	Unix             string
-	UPD              string
-	TCP              string
-	BufSize          uint
-	BufFlushInterval uint
-	Parallelism      int
-	Debug            bool
+	config.Runtime
+	config.Buffer
+	Listeners []string
+	Unix      string
+	UPD       string
+	TCP       string
 }
 
 func New(ctx context.Context, opt *Opt) (*Syslog, error) {
