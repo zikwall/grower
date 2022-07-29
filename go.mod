@@ -1,4 +1,4 @@
-module github.com/zikwall/ck-nginx
+module github.com/zikwall/grower
 
 go 1.18
 

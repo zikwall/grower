@@ -7,7 +7,7 @@ import (
 	"gopkg.in/mcuadros/go-syslog.v2"
 	"gopkg.in/mcuadros/go-syslog.v2/format"
 
-	"github.com/zikwall/ck-nginx/pkg/log"
+	"github.com/zikwall/grower/pkg/log"
 )
 
 const (

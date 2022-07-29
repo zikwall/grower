@@ -16,12 +16,12 @@ import (
 	"github.com/zikwall/clickhouse-buffer/v3/src/cx"
 	"github.com/zikwall/clickhouse-buffer/v3/src/db/cxnative"
 
-	"github.com/zikwall/ck-nginx/config"
-	"github.com/zikwall/ck-nginx/pkg/drop"
-	"github.com/zikwall/ck-nginx/pkg/handler"
-	"github.com/zikwall/ck-nginx/pkg/log"
-	"github.com/zikwall/ck-nginx/pkg/nginx"
-	"github.com/zikwall/ck-nginx/pkg/wrap"
+	"github.com/zikwall/grower/config"
+	"github.com/zikwall/grower/pkg/drop"
+	"github.com/zikwall/grower/pkg/handler"
+	"github.com/zikwall/grower/pkg/log"
+	"github.com/zikwall/grower/pkg/nginx"
+	"github.com/zikwall/grower/pkg/wrap"
 )
 
 const extension = ".growerlog"

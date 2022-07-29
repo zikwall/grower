@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/zikwall/ck-nginx/pkg/log"
+	"github.com/zikwall/grower/pkg/log"
 )
 
 func deleteOutdatedBackupFiles(original, directory string, maxBackups uint, maxAge time.Duration) error {

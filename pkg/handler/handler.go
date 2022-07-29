@@ -1,8 +1,8 @@
 package handler
 
 import (
-	"github.com/zikwall/ck-nginx/pkg/nginx"
 	"github.com/zikwall/clickhouse-buffer/v3/src/cx"
+	"github.com/zikwall/grower/pkg/nginx"
 )
 
 type Handler interface {

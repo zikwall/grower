@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/zikwall/ck-nginx/pkg/log"
+	"github.com/zikwall/grower/pkg/log"
 )
 
 type Impl struct {

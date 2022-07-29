@@ -8,7 +8,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/zikwall/ck-nginx/config"
+	"github.com/zikwall/grower/config"
 )
 
 // nolint:lll // it's OK

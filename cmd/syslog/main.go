@@ -11,10 +11,10 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/urfave/cli/v2"
 
-	"github.com/zikwall/ck-nginx/config"
-	"github.com/zikwall/ck-nginx/internal/services/syslog"
-	stdout "github.com/zikwall/ck-nginx/pkg/log"
-	"github.com/zikwall/ck-nginx/pkg/signal"
+	"github.com/zikwall/grower/config"
+	"github.com/zikwall/grower/internal/services/syslog"
+	stdout "github.com/zikwall/grower/pkg/log"
+	"github.com/zikwall/grower/pkg/signal"
 )
 
 // nolint:funlen // it's not important here

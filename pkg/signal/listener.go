@@ -10,7 +10,7 @@ import (
 
 	"github.com/gofiber/fiber/v2"
 
-	"github.com/zikwall/ck-nginx/pkg/log"
+	"github.com/zikwall/grower/pkg/log"
 )
 
 const (

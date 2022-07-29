@@ -19,7 +19,7 @@ func Colored(content string, color Color) string {
 }
 
 func Info(message interface{}) {
-	log.Printf("%s: %v \n", Colored("[CK-NGINX INFO]", Cyan), message)
+	log.Printf("%s: %v \n", Colored("[GROWER INFO]", Cyan), message)
 }
 
 func Infof(message string, v ...interface{}) {
@@ -27,7 +27,7 @@ func Infof(message string, v ...interface{}) {
 }
 
 func Warning(message interface{}) {
-	log.Printf("%s: %v \n", Colored("[CK-NGINX WARNING]", Yellow), message)
+	log.Printf("%s: %v \n", Colored("[GROWER WARNING]", Yellow), message)
 }
 
 func Warningf(message string, v ...interface{}) {
