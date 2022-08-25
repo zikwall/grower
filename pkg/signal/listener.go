@@ -18,7 +18,7 @@ const (
 	ListenerUDS
 )
 
-func ResolveListener(ctx context.Context, listener int, uds, tcp string) (net.Listener, error) {
+func Listener(ctx context.Context, listener int, uds, tcp string) (net.Listener, error) {
 	if listener == ListenerUDS {
 		defer maybeChmodSocket(ctx, uds)
 		ln, err := listenToUnix(uds)
@@ -53,19 +53,16 @@ func maybeChmodSocket(c context.Context, sock string) {
 				return
 			case <-time.After(time.Millisecond * 100):
 				log.Info(fmt.Sprintf("loop %d for chmod unix socket (%s)", tryCount, sock))
-
 				if err := os.Chmod(sock, 0o666); err != nil {
 					log.Warning(err)
 					continue
 				}
-
 				_, err := os.Stat(sock)
 				// if the file exists and it already has permissions
 				if err == nil {
 					log.Info(fmt.Sprintf("unix socket (%s) is ready for listen", sock))
 					return
 				}
-
 				tryCount++
 				if tryCount > 5 {
 					log.Warning("try count is outside for chmod unix socket")
