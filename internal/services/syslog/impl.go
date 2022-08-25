@@ -21,7 +21,7 @@ import (
 
 type Syslog struct {
 	*drop.Impl
-	syslog        *Server
+	syslog        *server
 	bufferWrapper *wrap.BufferWrapper
 	clientWrapper *wrap.ClientWrapper
 	rowHandler    handler.Handler
@@ -70,7 +70,7 @@ func New(ctx context.Context, opt *Opt) (*Syslog, error) {
 				RemoveHyphen:      opt.Config.Nginx.LogRemoveHyphen,
 			}),
 		),
-		syslog: NewServer(opt.SyslogConfig),
+		syslog: newServer(opt.SyslogConfig),
 	}
 	s.AddDroppers(
 		s.syslog,
@@ -86,7 +86,7 @@ func New(ctx context.Context, opt *Opt) (*Syslog, error) {
 			s.Buffer().Options().BatchSize(),
 		),
 	)
-	s.syslog.SetHandler(func(parts format.LogParts) {
+	s.syslog.setHandler(func(parts format.LogParts) {
 		if value, ok := parts["content"]; ok && value != "" {
 			vector, err := s.rowHandler.Handle(fmt.Sprintf("%v", parts["content"]))
 			if err != nil {
@@ -99,14 +99,17 @@ func New(ctx context.Context, opt *Opt) (*Syslog, error) {
 	return s, nil
 }
 
+// Context get root service level context
 func (s *Syslog) Context() context.Context {
 	return s.Impl.Context()
 }
 
-func (s *Syslog) Await(ctx context.Context) error {
-	return s.syslog.Await(ctx)
-}
-
+// Buffer get clickhouse buffer client
 func (s *Syslog) Buffer() clickhousebuffer.Client {
 	return s.clientWrapper.Client()
+}
+
+// Run service
+func (s *Syslog) Run(ctx context.Context) error {
+	return s.syslog.runContext(ctx)
 }

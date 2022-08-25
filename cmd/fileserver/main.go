@@ -2,7 +2,9 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
+	"net"
 	"os"
 	"runtime"
 	"time"
@@ -10,11 +12,13 @@ import (
 	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/gofiber/fiber/v2"
 	"github.com/urfave/cli/v2"
+	"google.golang.org/grpc"
 
 	"github.com/zikwall/grower/config"
-	"github.com/zikwall/grower/internal/services/filelog"
+	"github.com/zikwall/grower/internal/services/filegrpc"
 	stdout "github.com/zikwall/grower/pkg/log"
 	"github.com/zikwall/grower/pkg/signal"
+	"github.com/zikwall/grower/protobuf/filebuf"
 )
 
 // nolint:funlen // it's OK
@@ -35,16 +39,10 @@ func main() {
 				EnvVars: []string{"BIND_ADDRESS"},
 			},
 			&cli.StringFlag{
-				Name:    "logs-dir",
-				Value:   "/var/log/nginx",
-				Usage:   "Nginx logs directory",
-				EnvVars: []string{"LOGS_DIR"},
-			},
-			&cli.StringFlag{
-				Name:    "source-log-file",
-				Value:   "access.log",
-				Usage:   "Source log file name",
-				EnvVars: []string{"TARGET_LOG_FILE"},
+				Name:    "grpc-bind-address",
+				Value:   "0.0.0.0:3003",
+				Usage:   "Bin address on host",
+				EnvVars: []string{"GRPC_BIND_ADDRESS"},
 			},
 			&cli.IntFlag{
 				Name:     "parallelism",
@@ -52,25 +50,6 @@ func main() {
 				Required: false,
 				Value:    runtime.NumCPU(),
 				EnvVars:  []string{"PARALLELISM"},
-			},
-			&cli.DurationFlag{
-				Name:    "scrape-interval",
-				Value:   time.Duration(60000) * time.Millisecond,
-				Usage:   "Scrape interval",
-				EnvVars: []string{"CRAPE_INTERVAL"},
-			},
-			&cli.UintFlag{
-				Name:     "backup-files",
-				Usage:    "Count of backup files",
-				Required: false,
-				Value:    5,
-				EnvVars:  []string{"BACKUP_FILES"},
-			},
-			&cli.DurationFlag{
-				Name:    "backup-file-max-age",
-				Value:   time.Duration(60000*5) * time.Millisecond,
-				Usage:   "Backup file max age",
-				EnvVars: []string{"BACKUP_FILE_MAX_AGE"},
 			},
 			&cli.UintFlag{
 				Name:     "buffer-size",
@@ -118,28 +97,8 @@ func main() {
 				FilePath: "/srv/vp_secret/clickhouse_database",
 			},
 			&cli.BoolFlag{
-				Name:    "enable-rotating",
-				EnvVars: []string{"ENABLE_ROTATING"},
-				Value:   false,
-			},
-			&cli.BoolFlag{
-				Name:    "run-rotating-at-startup",
-				EnvVars: []string{"RUN_ROTATING_AT_STARTUP"},
-				Value:   false,
-			},
-			&cli.BoolFlag{
 				Name:    "run-http-server",
 				EnvVars: []string{"RUN_HTTP_SERVER"},
-				Value:   false,
-			},
-			&cli.BoolFlag{
-				Name:    "skip-nginx-reopen",
-				EnvVars: []string{"SKIP_NGINX_REOPEN"},
-				Value:   false,
-			},
-			&cli.BoolFlag{
-				Name:    "auto-create-target-from-scratch",
-				EnvVars: []string{"AUTO_CREATE_TARGET_FROM_SCRATCH"},
 				Value:   false,
 			},
 			&cli.BoolFlag{
@@ -166,7 +125,7 @@ func Main(ctx *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	instance, err := filelog.New(appContext, &filelog.Opt{
+	instance, err := filegrpc.NewServer(appContext, &filegrpc.ServerOpt{
 		Clickhouse: &clickhouse.Options{
 			Addr: ctx.StringSlice("clickhouse-host"),
 			Auth: clickhouse.Auth{
@@ -183,27 +142,17 @@ func Main(ctx *cli.Context) error {
 			},
 			Debug: ctx.Bool("debug"),
 		},
-		FileLogConfig: &filelog.Cfg{
-			LogsDir:                     ctx.String("logs-dir"),
-			SourceLogFile:               ctx.String("source-log-file"),
-			ScrapeInterval:              ctx.Duration("scrape-interval"),
-			BackupFiles:                 ctx.Uint("backup-files"),
-			BackupFileMaxAge:            ctx.Duration("backup-file-max-age"),
-			EnableRotating:              ctx.Bool("enable-rotating"),
-			AutoCreateTargetFromScratch: ctx.Bool("auto-create-target-from-scratch"),
-			RunAtStartup:                ctx.Bool("run-rotating-at-startup"),
-			SkipNginxReopen:             ctx.Bool("skip-nginx-reopen"),
-			Runtime: config.Runtime{
-				Parallelism:  ctx.Int("parallelism"),
-				WriteTimeout: ctx.Duration("write-timeout"),
-				Debug:        ctx.Bool("debug"),
-			},
-			Buffer: config.Buffer{
-				BufSize:          ctx.Uint("buffer-size"),
-				BufFlushInterval: ctx.Uint("buffer-flush-interval"),
-			},
+		Runtime: config.Runtime{
+			Parallelism:  ctx.Int("parallelism"),
+			WriteTimeout: ctx.Duration("write-timeout"),
+			Debug:        ctx.Bool("debug"),
 		},
-		Config: yamlConfig,
+		Buffer: config.Buffer{
+			BufSize:          ctx.Uint("buffer-size"),
+			BufFlushInterval: ctx.Uint("buffer-flush-interval"),
+		},
+		Config:      yamlConfig,
+		BindAddress: ctx.String("grpc-bind-address"),
 	})
 	if err != nil {
 		return err
@@ -215,7 +164,7 @@ func Main(ctx *cli.Context) error {
 		instance.Stacktrace()
 	}()
 	await, stop := signal.Notifier(func() {
-		stdout.Info("received a system signal to shut down FILELOG server, start the shutdown process..")
+		stdout.Info("received a system signal to shut down File Log gRPC Server, start the shutdown process..")
 	})
 	// HTTP server is needed mainly to track viability of the service and for metrics such as prometheus
 	if ctx.Bool("run-http-server") {
@@ -239,7 +188,25 @@ func Main(ctx *cli.Context) error {
 			}
 		}()
 	}
-	stdout.Info("Congratulations, FileLog service has been successfully launched")
+	// register and launch gRPC server
+	server := grpc.NewServer([]grpc.ServerOption{}...)
+	filebuf.RegisterFileBufferServiceServer(server, instance)
+	defer func() {
+		server.Stop()
+		stdout.Info("file log gRPC server is stopped")
+	}()
+	go func() {
+		listener, err := net.Listen("tcp", ctx.String("grpc-bind-address"))
+		if err != nil {
+			stop(fmt.Errorf("failed to listen: %v", err))
+			return
+		}
+		if err := server.Serve(listener); err != nil {
+			stop(fmt.Errorf("failed run gRPC server: %v", err))
+			return
+		}
+	}()
+	stdout.Info("congratulations, File Log gRPC Server has been successfully launched")
 	instance.Run(instance.Context())
 	return await()
 }

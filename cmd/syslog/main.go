@@ -212,7 +212,7 @@ func Main(ctx *cli.Context) error {
 		}()
 	}
 	go func() {
-		if err := instance.Await(instance.Context()); err != nil {
+		if err := instance.Run(instance.Context()); err != nil {
 			stop(err)
 		}
 	}()

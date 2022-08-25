@@ -3,7 +3,7 @@ WORKDIR /go/tmp/app
 COPY go.mod .
 COPY go.sum .
 COPY . .
-COPY ./cmd/filelog/main.go .
+COPY ./cmd/fileclient/main.go .
 RUN ls -l
 RUN go get .
 RUN go list -m all

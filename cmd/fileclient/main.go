@@ -7,12 +7,11 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/gofiber/fiber/v2"
 	"github.com/urfave/cli/v2"
 
 	"github.com/zikwall/grower/config"
-	"github.com/zikwall/grower/internal/services/filelog"
+	"github.com/zikwall/grower/internal/services/filegrpc"
 	stdout "github.com/zikwall/grower/pkg/log"
 	"github.com/zikwall/grower/pkg/signal"
 )
@@ -22,17 +21,16 @@ func main() {
 	application := &cli.App{
 		Flags: []cli.Flag{
 			&cli.StringFlag{
-				Name:     "config-file",
-				Required: true,
-				Usage:    "YAML config filepath",
-				EnvVars:  []string{"CONFIG_FILE"},
-				FilePath: "/srv/vp_secret/config_file",
-			},
-			&cli.StringFlag{
 				Name:    "bind-address",
 				Value:   "0.0.0.0:3000",
 				Usage:   "Run HTTP server in host",
 				EnvVars: []string{"BIND_ADDRESS"},
+			},
+			&cli.StringFlag{
+				Name:    "grpc-conn-address",
+				Value:   "0.0.0.0:3003",
+				Usage:   "Connect to host",
+				EnvVars: []string{"GRPC_CONN_ADDRESS"},
 			},
 			&cli.StringFlag{
 				Name:    "logs-dir",
@@ -71,51 +69,6 @@ func main() {
 				Value:   time.Duration(60000*5) * time.Millisecond,
 				Usage:   "Backup file max age",
 				EnvVars: []string{"BACKUP_FILE_MAX_AGE"},
-			},
-			&cli.UintFlag{
-				Name:     "buffer-size",
-				Usage:    "Clickhouse buffer size",
-				Required: false,
-				Value:    5000,
-				EnvVars:  []string{"BUFFER_SIZE"},
-			},
-			&cli.UintFlag{
-				Name:     "buffer-flush-interval",
-				Usage:    "Clickhouse buffer flush interval",
-				Required: false,
-				Value:    2000,
-				EnvVars:  []string{"BUFFER_FLUSH_INTERVAL"},
-			},
-			&cli.DurationFlag{
-				Name:    "write-timeout",
-				Value:   time.Duration(30) * time.Second,
-				Usage:   "Clickhouse Write timout",
-				EnvVars: []string{"WRITE_TIMEOUT"},
-			},
-			&cli.StringSliceFlag{
-				Name:     "clickhouse-host",
-				Usage:    "Clickhouse connect servers",
-				Required: true,
-				EnvVars:  []string{"CLICKHOUSE_HOST"},
-				FilePath: "/srv/vp_secret/clickhouse_host",
-			},
-			&cli.StringFlag{
-				Name:     "clickhouse-user",
-				Usage:    "Clickhouse server user",
-				EnvVars:  []string{"CLICKHOUSE_USER"},
-				FilePath: "/srv/vp_secret/clickhouse_user",
-			},
-			&cli.StringFlag{
-				Name:     "clickhouse-password",
-				Usage:    "Clickhouse server user password",
-				EnvVars:  []string{"CLICKHOUSE_PASSWORD"},
-				FilePath: "/srv/vp_secret/clickhouse_password",
-			},
-			&cli.StringFlag{
-				Name:     "clickhouse-database",
-				Usage:    "Clickhouse server database name",
-				EnvVars:  []string{"CLICKHOUSE_DATABASE"},
-				FilePath: "/srv/vp_secret/clickhouse_database",
 			},
 			&cli.BoolFlag{
 				Name:    "enable-rotating",
@@ -162,48 +115,21 @@ func Main(ctx *cli.Context) error {
 		<-time.After(time.Second)
 		stdout.Info("app context is canceled, service is down!")
 	}()
-	yamlConfig, err := config.New(ctx.String("config-file"))
-	if err != nil {
-		return err
-	}
-	instance, err := filelog.New(appContext, &filelog.Opt{
-		Clickhouse: &clickhouse.Options{
-			Addr: ctx.StringSlice("clickhouse-host"),
-			Auth: clickhouse.Auth{
-				Database: ctx.String("clickhouse-database"),
-				Username: ctx.String("clickhouse-username"),
-				Password: ctx.String("clickhouse-password"),
-			},
-			Settings: clickhouse.Settings{
-				"max_execution_time": 60,
-			},
-			DialTimeout: 5 * time.Second,
-			Compression: &clickhouse.Compression{
-				Method: clickhouse.CompressionLZ4,
-			},
-			Debug: ctx.Bool("debug"),
+	instance, err := filegrpc.NewClient(appContext, &filegrpc.ClientOpt{
+		ConnectAddress:              ctx.String("grpc-conn-address"),
+		LogsDir:                     ctx.String("logs-dir"),
+		SourceLogFile:               ctx.String("source-log-file"),
+		ScrapeInterval:              ctx.Duration("scrape-interval"),
+		BackupFiles:                 ctx.Uint("backup-files"),
+		BackupFileMaxAge:            ctx.Duration("backup-file-max-age"),
+		EnableRotating:              ctx.Bool("enable-rotating"),
+		AutoCreateTargetFromScratch: ctx.Bool("auto-create-target-from-scratch"),
+		RunAtStartup:                ctx.Bool("run-rotating-at-startup"),
+		SkipNginxReopen:             ctx.Bool("skip-nginx-reopen"),
+		Runtime: config.Runtime{
+			Parallelism: ctx.Int("parallelism"),
+			Debug:       ctx.Bool("debug"),
 		},
-		FileLogConfig: &filelog.Cfg{
-			LogsDir:                     ctx.String("logs-dir"),
-			SourceLogFile:               ctx.String("source-log-file"),
-			ScrapeInterval:              ctx.Duration("scrape-interval"),
-			BackupFiles:                 ctx.Uint("backup-files"),
-			BackupFileMaxAge:            ctx.Duration("backup-file-max-age"),
-			EnableRotating:              ctx.Bool("enable-rotating"),
-			AutoCreateTargetFromScratch: ctx.Bool("auto-create-target-from-scratch"),
-			RunAtStartup:                ctx.Bool("run-rotating-at-startup"),
-			SkipNginxReopen:             ctx.Bool("skip-nginx-reopen"),
-			Runtime: config.Runtime{
-				Parallelism:  ctx.Int("parallelism"),
-				WriteTimeout: ctx.Duration("write-timeout"),
-				Debug:        ctx.Bool("debug"),
-			},
-			Buffer: config.Buffer{
-				BufSize:          ctx.Uint("buffer-size"),
-				BufFlushInterval: ctx.Uint("buffer-flush-interval"),
-			},
-		},
-		Config: yamlConfig,
 	})
 	if err != nil {
 		return err
@@ -215,7 +141,7 @@ func Main(ctx *cli.Context) error {
 		instance.Stacktrace()
 	}()
 	await, stop := signal.Notifier(func() {
-		stdout.Info("received a system signal to shut down FILELOG server, start the shutdown process..")
+		stdout.Info("received a system signal to shut down File Log gRPC Client, start the shutdown process..")
 	})
 	// HTTP server is needed mainly to track viability of the service and for metrics such as prometheus
 	if ctx.Bool("run-http-server") {
@@ -239,7 +165,7 @@ func Main(ctx *cli.Context) error {
 			}
 		}()
 	}
-	stdout.Info("Congratulations, FileLog service has been successfully launched")
+	stdout.Info("congratulations, File Log gRPC Client has been successfully launched")
 	instance.Run(instance.Context())
 	return await()
 }
