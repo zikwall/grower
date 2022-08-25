@@ -18,14 +18,12 @@ import (
 
 	"github.com/zikwall/grower/config"
 	"github.com/zikwall/grower/pkg/drop"
+	"github.com/zikwall/grower/pkg/fileio"
 	"github.com/zikwall/grower/pkg/handler"
 	"github.com/zikwall/grower/pkg/log"
 	"github.com/zikwall/grower/pkg/nginx"
 	"github.com/zikwall/grower/pkg/wrap"
 )
-
-const extension = ".growerlog"
-const timeLayout = "2006_01_02_15_04_05"
 
 type FileLog struct {
 	*drop.Impl
@@ -45,7 +43,6 @@ type Cfg struct {
 	config.Buffer
 	LogsDir                     string
 	SourceLogFile               string
-	CounterFile                 string
 	ScrapeInterval              time.Duration
 	BackupFiles                 uint
 	BackupFileMaxAge            time.Duration
@@ -53,7 +50,6 @@ type Cfg struct {
 	AutoCreateTargetFromScratch bool
 	RunAtStartup                bool
 	SkipNginxReopen             bool
-	RewriteNginxLocalTime       bool
 }
 
 func New(ctx context.Context, opt *Opt) (*FileLog, error) {
@@ -105,16 +101,19 @@ func New(ctx context.Context, opt *Opt) (*FileLog, error) {
 	return f, nil
 }
 
+// Context get root service level context
 func (f *FileLog) Context() context.Context {
 	return f.Impl.Context()
 }
 
+// Buffer get clickhouse buffer client
 func (f *FileLog) Buffer() clickhousebuffer.Client {
 	return f.clientWrapper.Client()
 }
 
-func (f *FileLog) BootContext(ctx context.Context) {
-	f.worker.autoRotatorContext(ctx)
+// Run service
+func (f *FileLog) Run(ctx context.Context) {
+	f.worker.runContext(ctx)
 }
 
 type Worker struct {
@@ -178,8 +177,8 @@ func (w *Worker) worker(ctx context.Context, worker int) {
 	}
 }
 
-// main loop for read and rotating logs
-func (w *Worker) autoRotatorContext(ctx context.Context) {
+// runContext main loop for read and rotating logs
+func (w *Worker) runContext(ctx context.Context) {
 	w.preparePoolContext(ctx)
 	w.wg.Add(1)
 	go func() {
@@ -191,25 +190,25 @@ func (w *Worker) autoRotatorContext(ctx context.Context) {
 			log.Info("stop scrapper worker")
 		}()
 		if w.cfg.RunAtStartup {
-			w.handleWithRotate()
+			w.timeHasComeRotate()
 		}
 		for {
 			select {
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
-				w.handleWithRotate()
+				w.timeHasComeRotate()
 			}
 		}
 	}()
 }
 
-// handleWithRotate function starts processing log file, and then deletes outdated logs
-func (w *Worker) handleWithRotate() {
+// timeHasComeRotate function starts processing log file, and then deletes outdated logs
+func (w *Worker) timeHasComeRotate() {
 	if w.cfg.AutoCreateTargetFromScratch {
 		// only for local development mode, each cyclo create new access.log from scratch
 		// will be removed in future
-		fromScratch(w.cfg.SourceLogFile, w.cfg.LogsDir)
+		fileio.FromScratch(w.cfg.SourceLogFile, w.cfg.LogsDir)
 		log.Infof(
 			"%s will be generated from scratch and mounted in the directory: %s",
 			w.cfg.SourceLogFile,
@@ -221,7 +220,7 @@ func (w *Worker) handleWithRotate() {
 	}
 	// if rotation option is enabled, we delete outdated log files
 	if w.cfg.EnableRotating {
-		err := deleteOutdatedBackupFiles(
+		err := fileio.DeleteOutdatedBackupFiles(
 			w.cfg.SourceLogFile,
 			w.cfg.LogsDir,
 			w.cfg.BackupFiles,
@@ -236,11 +235,10 @@ func (w *Worker) handleWithRotate() {
 // handleFile rotate target file and handle all rows
 func (w *Worker) handleFile(dir, file string) error {
 	oldFilepath := path.Join(dir, file)
-	if err := checkFile(oldFilepath); err != nil {
+	if err := fileio.CheckFile(oldFilepath); err != nil {
 		return err
 	}
-	name := fmt.Sprintf("%s-%s%s", file, time.Now().Format(timeLayout), extension)
-	newFilepath := path.Join(dir, name)
+	newFilepath := path.Join(dir, fileio.BuildGrowerLogName(file))
 	if err := os.Rename(oldFilepath, newFilepath); err != nil {
 		return fmt.Errorf("failed to rotate file: %w", err)
 	}

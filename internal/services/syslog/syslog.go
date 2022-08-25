@@ -18,7 +18,7 @@ const (
 
 type Handler func(format.LogParts)
 
-type Server struct {
+type server struct {
 	cfg     *Cfg
 	handler Handler
 	server  *syslog.Server
@@ -26,15 +26,12 @@ type Server struct {
 	wg      *sync.WaitGroup
 }
 
-func (s *Server) SetHandler(handler Handler) {
+func (s *server) setHandler(handler Handler) {
 	s.handler = handler
 }
 
-func (s *Server) Await(ctx context.Context) error {
-	defer func() {
-		close(s.channel)
-		log.Info("syslog awaiter successfully finished")
-	}()
+func (s *server) runContext(ctx context.Context) error {
+	defer log.Info("syslog process successfully finished")
 	for _, listener := range s.cfg.Listeners {
 		switch listener {
 		case ListenerTCP:
@@ -82,23 +79,25 @@ func (s *Server) Await(ctx context.Context) error {
 
 // Drop method implements drop.Drop interface
 // Drop method cleans up all resources, closes channels and waits for completion of all goroutines
-func (s *Server) Drop() error {
+func (s *server) Drop() error {
 	// first, stop syslog daemon to avoid cases when writing to a closed channel will be performed
 	err := s.server.Kill()
 	// finally, waiting for the completion of all goroutines
 	s.wg.Wait()
+	// close channel
+	close(s.channel)
 	// return an error, if any
 	return err
 }
 
 // DropMsg method implements drop.Debug interface
 // DropMsg writes to log fact that Syslog was successfully destroyed
-func (s *Server) DropMsg() string {
+func (s *server) DropMsg() string {
 	return "syslog server was successfully destroyed"
 }
 
-func NewServer(cfg *Cfg) *Server {
-	s := &Server{
+func newServer(cfg *Cfg) *server {
+	s := &server{
 		cfg: cfg,
 		wg:  &sync.WaitGroup{},
 	}

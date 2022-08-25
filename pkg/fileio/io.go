@@ -1,4 +1,4 @@
-package filelog
+package fileio
 
 import (
 	"fmt"
@@ -13,7 +13,14 @@ import (
 	"github.com/zikwall/grower/pkg/log"
 )
 
-func deleteOutdatedBackupFiles(original, directory string, maxBackups uint, maxAge time.Duration) error {
+const extension = ".growerlog"
+const timeLayout = "2006_01_02_15_04_05"
+
+func BuildGrowerLogName(original string) string {
+	return fmt.Sprintf("%s-%s%s", original, time.Now().Format(timeLayout), extension)
+}
+
+func DeleteOutdatedBackupFiles(original, directory string, maxBackups uint, maxAge time.Duration) error {
 	files, err := os.ReadDir(directory)
 	if err != nil {
 		return fmt.Errorf("failed read nginx logs dir: %w", err)
@@ -85,9 +92,9 @@ func (s sortableFiles) Len() int {
 	return len(s)
 }
 
-// fromScratch it is intended only to simplify development mode
-// fromScratch simply generates a new log file for each iteration
-func fromScratch(source, directory string) {
+// FromScratch it is intended only to simplify development mode
+// FromScratch simply generates a new log file for each iteration
+func FromScratch(source, directory string) {
 	pwd, _ := os.Getwd()
 	// nolint:gosec // it's not important here only for debug mode
 	if err := exec.Command("cp", path.Join(pwd, "sample_test.log"), directory).Run(); err != nil {
@@ -97,8 +104,8 @@ func fromScratch(source, directory string) {
 	}
 }
 
-// checkFile we check if file exists and if we can manipulate it
-func checkFile(file string) error {
+// CheckFile we check if file exists and if we can manipulate it
+func CheckFile(file string) error {
 	if _, err := os.Stat(file); err != nil {
 		if err == os.ErrNotExist {
 			return fmt.Errorf("file doesn't exists: %w", err)

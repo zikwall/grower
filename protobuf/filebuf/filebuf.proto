@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package filebuf;
+option go_package = "github.com/zikwall/grower/protobuf/filebuf";
+
+service FileBufferService {
+  rpc CreateDataStreamer (stream Request) returns (Response) {}
+}
+
+message Request {
+  string data = 1;
+}
+
+message Response {
+}
