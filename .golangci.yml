@@ -39,7 +39,7 @@ linters:
     - gocritic
     - gocyclo
     # - gofmt
-    - goimports
+    # - goimports
     - golint
     - gosec
     - gosimple
