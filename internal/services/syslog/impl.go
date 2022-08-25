@@ -5,10 +5,10 @@ import (
 	"fmt"
 
 	"github.com/ClickHouse/clickhouse-go/v2"
-	clickhousebuffer "github.com/zikwall/clickhouse-buffer/v3"
-	"github.com/zikwall/clickhouse-buffer/v3/src/buffer/cxmem"
-	"github.com/zikwall/clickhouse-buffer/v3/src/cx"
-	"github.com/zikwall/clickhouse-buffer/v3/src/db/cxnative"
+	clickhousebuffer "github.com/zikwall/clickhouse-buffer/v4"
+	"github.com/zikwall/clickhouse-buffer/v4/src/buffer/cxmem"
+	"github.com/zikwall/clickhouse-buffer/v4/src/cx"
+	"github.com/zikwall/clickhouse-buffer/v4/src/db/cxnative"
 	"gopkg.in/mcuadros/go-syslog.v2/format"
 
 	"github.com/zikwall/grower/config"
@@ -43,13 +43,15 @@ type Cfg struct {
 }
 
 func New(ctx context.Context, opt *Opt) (*Syslog, error) {
-	ch, _, err := cxnative.NewClickhouse(ctx, opt.Clickhouse)
+	ch, _, err := cxnative.NewClickhouse(ctx, opt.Clickhouse, &cx.RuntimeOptions{
+		WriteTimeout: opt.SyslogConfig.WriteTimeout,
+	})
 	if err != nil {
 		return nil, err
 	}
 	client := clickhousebuffer.NewClientWithOptions(ctx, ch, clickhousebuffer.DefaultOptions().
 		SetFlushInterval(opt.SyslogConfig.BufFlushInterval).
-		SetBatchSize(opt.SyslogConfig.BufSize+1).
+		SetBatchSize(opt.SyslogConfig.BufSize).
 		SetDebugMode(opt.SyslogConfig.Debug).
 		SetRetryIsEnabled(true),
 	)
@@ -76,6 +78,9 @@ func New(ctx context.Context, opt *Opt) (*Syslog, error) {
 		s.bufferWrapper,
 	)
 	writerAPI := s.Buffer().Writer(
+		clickhouse.Context(context.Background(), clickhouse.WithSettings(clickhouse.Settings{
+			"max_execution_time": opt.SyslogConfig.WriteTimeout.Seconds(),
+		})),
 		cx.NewView(opt.Config.Scheme.LogsTable, columns),
 		cxmem.NewBuffer(
 			s.Buffer().Options().BatchSize(),

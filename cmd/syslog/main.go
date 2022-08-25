@@ -83,6 +83,12 @@ func main() {
 				Value:    runtime.NumCPU(),
 				EnvVars:  []string{"PARALLELISM"},
 			},
+			&cli.DurationFlag{
+				Name:    "write-timeout",
+				Value:   time.Duration(30) * time.Second,
+				Usage:   "Clickhouse Write timout",
+				EnvVars: []string{"WRITE_TIMEOUT"},
+			},
 			&cli.StringSliceFlag{
 				Name:     "clickhouse-host",
 				Usage:    "Clickhouse connect servers",
@@ -160,8 +166,9 @@ func Main(ctx *cli.Context) error {
 			UPD:       ctx.String("syslog-udp-address"),
 			TCP:       ctx.String("syslog-tcp-address"),
 			Runtime: config.Runtime{
-				Parallelism: ctx.Int("parallelism"),
-				Debug:       ctx.Bool("debug"),
+				Parallelism:  ctx.Int("parallelism"),
+				WriteTimeout: ctx.Duration("write-timeout"),
+				Debug:        ctx.Bool("debug"),
 			},
 			Buffer: config.Buffer{
 				BufSize:          ctx.Uint("buffer-size"),
@@ -182,16 +189,17 @@ func Main(ctx *cli.Context) error {
 	await, stop := signal.Notifier(func() {
 		stdout.Info("received a system signal to shut down SYSLOG server, start the shutdown process..")
 	})
+	// HTTP server is needed mainly to track viability of the service and for metrics such as prometheus
 	if ctx.Bool("run-http-server") {
-		// add metrics
+		// run HTTP server
 		go func() {
 			app := fiber.New(fiber.Config{
-				ServerHeader: "CK-NGINX: Syslog Server",
+				ServerHeader: "Grower SysLog Server",
 			})
 			app.Get("/live", func(ctx *fiber.Ctx) error {
 				return ctx.Status(200).SendString("Alive")
 			})
-			ln, err := signal.ResolveListener(
+			ln, err := signal.Listener(
 				instance.Context(), signal.ListenerTCP, "", ctx.String("bind-address"),
 			)
 			if err != nil {
@@ -208,6 +216,6 @@ func Main(ctx *cli.Context) error {
 			stop(err)
 		}
 	}()
-	stdout.Info("congratulations, the Syslog service has been successfully launched")
+	stdout.Info("congratulations, SysLog service has been successfully launched")
 	return await()
 }

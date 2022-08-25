@@ -86,6 +86,12 @@ func main() {
 				Value:    2000,
 				EnvVars:  []string{"BUFFER_FLUSH_INTERVAL"},
 			},
+			&cli.DurationFlag{
+				Name:    "write-timeout",
+				Value:   time.Duration(30) * time.Second,
+				Usage:   "Clickhouse Write timout",
+				EnvVars: []string{"WRITE_TIMEOUT"},
+			},
 			&cli.StringSliceFlag{
 				Name:     "clickhouse-host",
 				Usage:    "Clickhouse connect servers",
@@ -195,8 +201,9 @@ func Main(ctx *cli.Context) error {
 			SkipNginxReopen:             ctx.Bool("skip-nginx-reopen"),
 			RewriteNginxLocalTime:       ctx.Bool("rewrite-nginx-local-time"),
 			Runtime: config.Runtime{
-				Parallelism: ctx.Int("parallelism"),
-				Debug:       ctx.Bool("debug"),
+				Parallelism:  ctx.Int("parallelism"),
+				WriteTimeout: ctx.Duration("write-timeout"),
+				Debug:        ctx.Bool("debug"),
 			},
 			Buffer: config.Buffer{
 				BufSize:          ctx.Uint("buffer-size"),
@@ -217,16 +224,17 @@ func Main(ctx *cli.Context) error {
 	await, stop := signal.Notifier(func() {
 		stdout.Info("received a system signal to shut down FILELOG server, start the shutdown process..")
 	})
+	// HTTP server is needed mainly to track viability of the service and for metrics such as prometheus
 	if ctx.Bool("run-http-server") {
 		// run HTTP server
 		go func() {
 			app := fiber.New(fiber.Config{
-				ServerHeader: "Lime Filelog Server",
+				ServerHeader: "Grower FileLog Server",
 			})
 			app.Get("/live", func(ctx *fiber.Ctx) error {
 				return ctx.Status(200).SendString("Alive")
 			})
-			ln, err := signal.ResolveListener(
+			ln, err := signal.Listener(
 				instance.Context(), signal.ListenerTCP, "", ctx.String("bind-address"),
 			)
 			if err != nil {
@@ -238,7 +246,7 @@ func Main(ctx *cli.Context) error {
 			}
 		}()
 	}
-	stdout.Info("Congratulations, the Filelog service has been successfully launched")
+	stdout.Info("Congratulations, FileLog service has been successfully launched")
 	instance.BootContext(instance.Context())
 	return await()
 }

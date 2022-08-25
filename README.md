@@ -1,21 +1,20 @@
-## Grower
+[![build](https://github.com/zikwall/grower/workflows/build_and_tests/badge.svg)](https://github.com/zikwall/clickhouse-buffer/v4/actions)
+[![build](https://github.com/zikwall/grower/workflows/golangci_lint/badge.svg)](https://github.com/zikwall/clickhouse-buffer/v4/actions)
 
-Grower is a tool that allows you to write Nginx logs to the Clickhouse columnar database.
+<div align="center">
+  <h1>Grower</h1>
+  <h5>An easy-to-use, powerful and productive tool that allows you to write Nginx logs to a Clickhouse columnar database.</h5>
+</div>
 
-**Main Features:**
+**Features:**
 
-- no dependencies, it works like a regular binary file or in docker
-- ability to write via syslog protocol
-- ability to read logs and write to Clickhouse
-- integrated file rotation
-- configurable buffer size and data reset interval
-- support for replays of unsent data
-- flexible configuration of reading log files
-- type-safe
-- default support native nginx log attributes
-- ability to add your own attributes and types to them
-- configurable multithreading of data processing, both syslog and filelog
-- manual data type management (only for custom columns, maybe there will be for embedded attributes in the future)
+- **No dependencies**: it works like a regular binary file or in docker
+- **Syslog** protocol (tcp, udp, unix) support
+- **File Log** read/write/rotate support
+- **Fully configurable**: timeouts, buffer sizes, flush intervals, retries, schema & log formats
+- **Type Safe**: native support for protection types
+- Support **all nginx attributes** and ability to add your **own fields**
+- **Multithreading** support
 
 **TODO:**
 
@@ -23,7 +22,11 @@ Grower is a tool that allows you to write Nginx logs to the Clickhouse columnar 
 - saving corrupted files for manual processing
 - possibility of log native compression
 - native support for more data types
-- native support for complex geographic data types such as `GeoIPRegion(ip)`, `GeoIPCity(ip)`, `GeoIPAS(ip)`
+- native support for complex data types such as:
+  - Geo: `GeoIPRegion(ip)`, `GeoIPCity(ip)`, `GeoIPAS(ip)`
+  - JSON: `JSONStringField(field_name, json_string_field)`, `JSONUInt64Field(field_name, json_string_field)`
+  - RegExp: `RegExp('/\(?([0-9]{3})\)?([ .-]?)([0-9]{3})\2([0-9]{4})/', target_field)` - example get phone number from string
+  - Cast: `toUInt32(GeoIPAS(ip))`
 
 ### How to use?
 
@@ -36,7 +39,7 @@ is very simple and clear, see [sample.yaml configuration file](./sample_test.yam
 **With native binary:**
 
 ```shell
-go run -race ./cmd/filelog/  \
+go run ./cmd/filelog/main.go  \
     --config-file ./sample_test.yaml \
     --bind-address 0.0.0.0:3000 \
     --logs-dir /var/log/nginx \
@@ -51,6 +54,7 @@ go run -race ./cmd/filelog/  \
     --clickhouse-password '' \
     --buffer-size 10000 \
     --buffer-flush-interval 5000 \
+    --write-timeout '0m30s' \
     --parallelism 5 \
     --debug \
     --auto-create-target-from-scratch \
@@ -78,6 +82,7 @@ docker run -d --net=host \
    -e CLICKHOUSE_DATABASE='default' \
    -e BUFFER_FLUSH_INTERVAL=2000 \
    -e BUFFER_SIZE=5000 \
+   -e WRITE_TIMEOUT='0m30s' \
    -e PARALLELISM=5 \
    -e RUN_HTTP_SERVER=true \
    -e AUTO_CREATE_TARGET_FROM_SCRATCH \
@@ -105,7 +110,7 @@ docker build -t your_image_name:latest -f ./cmd/filelog/Dockerfile .
 **With native binary:**
 
 ```shell
-go run ./cmd/syslog/  \
+go run ./cmd/syslog/main.go  \
     --config-file ./sample_test.yaml \
     --bind-address 0.0.0.0:3000 \
     --syslog-unix-socket /tmp/syslog.sock \
@@ -121,6 +126,7 @@ go run ./cmd/syslog/  \
     --clickhouse-password '' \
     --buffer-size 5000 \
     --buffer-flush-interval 2000 \
+    --write-timeout '0m30s' \
     --parallelism 5 \
     --run-http-server \
     --debug
@@ -143,6 +149,7 @@ docker run -d --net=host \
    -e CLICKHOUSE_DATABASE='default' \
    -e BUFFER_FLUSH_INTERVAL=2000 \
    -e BUFFER_SIZE=5000 \
+   -e WRITE_TIMEOUT='0m30s' \
    -e PARALLELISM=5 \
    -e RUN_HTTP_SERVER=true \
    -e DEBUG=true \
