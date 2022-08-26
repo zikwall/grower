@@ -353,12 +353,12 @@ docker build -t qwx1337/grower-filebuf-server:latest -f ./cmd/fileserver/Dockerf
 ### Recommendations and Notes
 
 1. Only for big data (200k>) or fast line-by-line processing (10k/s>):
-2. Use a buffer size between 1000 and 5000 if you want less CPU utilization, but this **will increase processing time**.
-3. Use a buffer size in the range of 5000, 10000 and more if you want to process data faster, but this **will increase CPU and memory utilization**.
-4. You can find the most advantageous option in your case yourself by simply configuring the following arguments: (`--buffer-size`, `--buffer-flush-interval`)
-5. Easiest way to use it is SysLog, at the same time optimal, because there are no sharp spikes in load when reading a file, as in the case of FileLog
-6. Remember that delivery to **SysLog via UDP is not guaranteed**
-7. FileLog is convenient, because there is no need to raise separate servers, as in the case of SysLog and FileBuf
-8. FileBuf is as load-efficient as SysLog, but with reliable content delivery.
-9. At the moment FileBuf **does not support automatic reconnection** of streams
-10. You can configure an acceptable multithreading for yourself through the argument `--parallelism`
+   - Use a buffer size between 1000 and 5000 if you want less CPU utilization, but this **will increase processing time**.
+   - Use a buffer size in the range of 5000, 10000 and more if you want to process data faster, but this **will increase CPU and memory utilization**.
+2. You can find the most advantageous option in your case yourself by simply configuring the following arguments: (`--buffer-size`, `--buffer-flush-interval`)
+3. Easiest way to use it is SysLog, at the same time optimal, because there are no sharp spikes in load when reading a file, as in the case of FileLog
+4. Remember that delivery to **SysLog via UDP is not guaranteed**
+5. FileLog is convenient, because there is no need to raise separate servers, as in the case of SysLog and FileBuf
+6. FileBuf is as load-efficient as SysLog, but with reliable content delivery.
+7. At the moment FileBuf **does not support automatic reconnection** of streams
+8. You can configure an acceptable multithreading for yourself through the argument `--parallelism`
