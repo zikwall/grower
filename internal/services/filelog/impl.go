@@ -3,10 +3,7 @@ package filelog
 import (
 	"bufio"
 	"context"
-	"fmt"
 	"os"
-	"os/exec"
-	"path"
 	"sync"
 	"time"
 
@@ -122,6 +119,7 @@ type Worker struct {
 	rowHandler handler.Handler
 	writer     clickhousebuffer.Writer
 	raw        chan string
+	rotate     fileio.Rotator
 }
 
 func (w *Worker) Drop() error {
@@ -141,6 +139,16 @@ func NewWorker(rowHandler handler.Handler, writer clickhousebuffer.Writer, cfg *
 		writer:     writer,
 		raw:        make(chan string),
 	}
+	w.rotate = fileio.New(
+		cfg.SourceLogFile,
+		cfg.LogsDir,
+		cfg.BackupFiles,
+		cfg.BackupFileMaxAge,
+		cfg.AutoCreateTargetFromScratch,
+		cfg.EnableRotating,
+		cfg.SkipNginxReopen,
+		w.handleFile,
+	)
 	return w
 }
 
@@ -190,89 +198,34 @@ func (w *Worker) runContext(ctx context.Context) {
 			log.Info("stop scrapper worker")
 		}()
 		if w.cfg.RunAtStartup {
-			w.timeHasComeRotate()
+			if err := w.rotate.Rotate(); err != nil {
+				log.Warning(err)
+			}
 		}
 		for {
 			select {
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
-				w.timeHasComeRotate()
+				if err := w.rotate.Rotate(); err != nil {
+					log.Warning(err)
+				}
 			}
 		}
 	}()
-}
-
-// timeHasComeRotate function starts processing log file, and then deletes outdated logs
-func (w *Worker) timeHasComeRotate() {
-	if w.cfg.AutoCreateTargetFromScratch {
-		// only for local development mode, each cyclo create new access.log from scratch
-		// will be removed in future
-		fileio.FromScratch(w.cfg.SourceLogFile, w.cfg.LogsDir)
-		log.Infof(
-			"%s will be generated from scratch and mounted in the directory: %s",
-			w.cfg.SourceLogFile,
-			w.cfg.LogsDir,
-		)
-	}
-	if err := w.handleFile(w.cfg.LogsDir, w.cfg.SourceLogFile); err != nil {
-		log.Warning(err)
-	}
-	// if rotation option is enabled, we delete outdated log files
-	if w.cfg.EnableRotating {
-		err := fileio.DeleteOutdatedBackupFiles(
-			w.cfg.SourceLogFile,
-			w.cfg.LogsDir,
-			w.cfg.BackupFiles,
-			w.cfg.BackupFileMaxAge,
-		)
-		if err != nil {
-			log.Warning(err)
-		}
-	}
 }
 
 // handleFile rotate target file and handle all rows
-func (w *Worker) handleFile(dir, file string) error {
-	oldFilepath := path.Join(dir, file)
-	if err := fileio.CheckFile(oldFilepath); err != nil {
-		return err
-	}
-	newFilepath := path.Join(dir, fileio.BuildGrowerLogName(file))
-	if err := os.Rename(oldFilepath, newFilepath); err != nil {
-		return fmt.Errorf("failed to rotate file: %w", err)
-	}
-	if !w.cfg.SkipNginxReopen {
-		// send command to nginx for reopen log file
-		if err := exec.Command("nginx", "-s", "reopen").Run(); err != nil {
-			return fmt.Errorf("failed to reopen nginx: %w", err)
-		}
-	}
-	f, err := os.OpenFile(newFilepath, os.O_RDONLY, 0o777)
-	if err != nil {
-		return fmt.Errorf("failed open log file: %w", err)
-	}
-	defer func() {
-		if err := f.Close(); err != nil {
-			log.Warning(err)
-		}
-		// if rotation is not enabled, just delete the current index file
-		if !w.cfg.EnableRotating {
-			if err := os.Remove(newFilepath); err != nil {
-				log.Warning(err)
-			}
-		}
-	}()
+func (w *Worker) handleFile(file *os.File) error {
 	// Optionally, resize scanner's capacity for lines over 64K.
 	// Problem is Scanner.Scan() is limited in a 4096 []byte buffer size per line.
 	// We will get bufio.ErrTooLong error, which is bufio.Scanner: token too long if the line is too long.
 	// In which case, you'll have to use bufio.ReaderLine() or ReadString()
-	scanner := bufio.NewScanner(bufio.NewReader(f))
+	scanner := bufio.NewScanner(bufio.NewReader(file))
 	for scanner.Scan() {
 		w.raw <- scanner.Text()
 	}
 	if scanner.Err() != nil {
-		// todo if receive error save file to temporary directory
 		return scanner.Err()
 	}
 	return nil

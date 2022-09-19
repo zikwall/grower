@@ -19,7 +19,7 @@ import (
 	"github.com/zikwall/grower/protobuf/filebuf"
 )
 
-type FileBufferServer struct {
+type Server struct {
 	filebuf.UnimplementedFileBufferServiceServer
 	*drop.Impl
 	bufferWrapper *wrap.BufferWrapper
@@ -27,7 +27,7 @@ type FileBufferServer struct {
 	worker        *FileServerWorker
 }
 
-func NewServer(ctx context.Context, opt *ServerOpt) (*FileBufferServer, error) {
+func NewServer(ctx context.Context, opt *ServerOpt) (*Server, error) {
 	var err error
 	ch, _, err := cxnative.NewClickhouse(ctx, opt.Clickhouse, &cx.RuntimeOptions{
 		WriteTimeout: opt.WriteTimeout,
@@ -41,7 +41,7 @@ func NewServer(ctx context.Context, opt *ServerOpt) (*FileBufferServer, error) {
 		SetDebugMode(opt.Debug).
 		SetRetryIsEnabled(true),
 	)
-	s := &FileBufferServer{
+	s := &Server{
 		Impl:          drop.NewContext(ctx),
 		bufferWrapper: wrap.NewBufferWrapper(ch),
 		clientWrapper: wrap.NewClientWrapper(client),
@@ -77,7 +77,7 @@ func NewServer(ctx context.Context, opt *ServerOpt) (*FileBufferServer, error) {
 }
 
 // CreateDataStreamer creates a constant stream receiving data from the client
-func (s *FileBufferServer) CreateDataStreamer(server filebuf.FileBufferService_CreateDataStreamerServer) error {
+func (s *Server) CreateDataStreamer(server filebuf.FileBufferService_CreateDataStreamerServer) error {
 	for {
 		req, err := server.Recv()
 		if err == io.EOF {
@@ -91,18 +91,18 @@ func (s *FileBufferServer) CreateDataStreamer(server filebuf.FileBufferService_C
 }
 
 // Context get root service level context
-func (s *FileBufferServer) Context() context.Context {
+func (s *Server) Context() context.Context {
 	return s.Impl.Context()
 }
 
 // Buffer get clickhouse buffer client
-func (s *FileBufferServer) Buffer() clickhousebuffer.Client {
+func (s *Server) Buffer() clickhousebuffer.Client {
 	return s.clientWrapper.Client()
 }
 
 // Run service
-func (s *FileBufferServer) Run(ctx context.Context) {
-	s.worker.prepareServerWorkerPool(ctx)
+func (s *Server) Run(ctx context.Context) {
+	s.worker.preparePool(ctx)
 }
 
 type FileServerWorker struct {
@@ -133,7 +133,7 @@ func (w *FileServerWorker) DropMsg() string {
 	return "kill file gRPC server"
 }
 
-func (w *FileServerWorker) prepareServerWorkerPool(ctx context.Context) {
+func (w *FileServerWorker) preparePool(ctx context.Context) {
 	for i := 1; i <= w.opt.Parallelism; i++ {
 		w.wg.Add(1)
 		go w.makeReceiver(ctx, i)
