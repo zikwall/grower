@@ -5,6 +5,7 @@ go 1.18
 require (
 	github.com/ClickHouse/clickhouse-go/v2 v2.3.0
 	github.com/gofiber/fiber/v2 v2.35.0
+	github.com/segmentio/kafka-go v0.4.35
 	github.com/urfave/cli/v2 v2.11.1
 	github.com/zikwall/clickhouse-buffer/v4 v4.0.3
 	google.golang.org/grpc v1.49.0

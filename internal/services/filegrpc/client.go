@@ -179,17 +179,13 @@ func (w *ClientWorker) handleFile(file *os.File) error {
 	// In which case, you'll have to use bufio.ReaderLine() or ReadString()
 	scanner := bufio.NewScanner(bufio.NewReader(file))
 	for scanner.Scan() {
-		w.send(scanner.Text())
+		if atomic.LoadUint32(&w.isClosed) == 1 {
+			break
+		}
+		w.str <- scanner.Text()
 	}
 	if scanner.Err() != nil {
 		return scanner.Err()
 	}
 	return nil
-}
-
-func (w *ClientWorker) send(s string) {
-	if atomic.LoadUint32(&w.isClosed) == 1 {
-		return
-	}
-	w.str <- s
 }
