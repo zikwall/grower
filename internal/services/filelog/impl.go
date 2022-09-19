@@ -119,7 +119,7 @@ type Worker struct {
 	rowHandler handler.Handler
 	writer     clickhousebuffer.Writer
 	raw        chan string
-	rotate     fileio.Rotator
+	rotator    fileio.Rotator
 }
 
 func (w *Worker) Drop() error {
@@ -139,7 +139,7 @@ func NewWorker(rowHandler handler.Handler, writer clickhousebuffer.Writer, cfg *
 		writer:     writer,
 		raw:        make(chan string),
 	}
-	w.rotate = fileio.New(
+	w.rotator = fileio.New(
 		cfg.SourceLogFile,
 		cfg.LogsDir,
 		cfg.BackupFiles,
@@ -153,7 +153,7 @@ func NewWorker(rowHandler handler.Handler, writer clickhousebuffer.Writer, cfg *
 }
 
 // create worker pool for handling parsed rows
-func (w *Worker) preparePoolContext(ctx context.Context) {
+func (w *Worker) preparePool(ctx context.Context) {
 	var i int
 	for i = 1; i <= w.cfg.Parallelism; i++ {
 		w.wg.Add(1)
@@ -187,7 +187,7 @@ func (w *Worker) worker(ctx context.Context, worker int) {
 
 // runContext main loop for read and rotating logs
 func (w *Worker) runContext(ctx context.Context) {
-	w.preparePoolContext(ctx)
+	w.preparePool(ctx)
 	w.wg.Add(1)
 	go func() {
 		ticker := time.NewTicker(w.cfg.ScrapeInterval)
@@ -198,7 +198,7 @@ func (w *Worker) runContext(ctx context.Context) {
 			log.Info("stop scrapper worker")
 		}()
 		if w.cfg.RunAtStartup {
-			if err := w.rotate.Rotate(); err != nil {
+			if err := w.rotator.Rotate(); err != nil {
 				log.Warning(err)
 			}
 		}
@@ -207,7 +207,7 @@ func (w *Worker) runContext(ctx context.Context) {
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
-				if err := w.rotate.Rotate(); err != nil {
+				if err := w.rotator.Rotate(); err != nil {
 					log.Warning(err)
 				}
 			}
