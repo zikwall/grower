@@ -9,10 +9,14 @@
 **Features:**
 
 - **No dependencies**: it works like a regular binary file or in docker
-- Supports **three versions** of content delivery:
-  - **FileLog** read/write/rotate support
-  - **SysLog** protocol (tcp, udp, unix) support
-  - **FileBuf** gRPC client and server
+- Supports for **multiple versions** of content delivery:
+  - [x] **FileLog** read/write/rotate support
+  - [x] **SysLog** protocol (tcp, udp, unix) support
+  - [x] **FileBuf** gRPC client and server
+  - [x] **KafkaLog** FileLog Client-Server + Kafka as Broker
+  - [ ] **RabbitLog** FileLog Client-Server + RabbitMQ as Broker
+  - [ ] **RedisLog** FileLog Client-Server + Redis as Broker
+  - [ ] **NATSLog** FileLog Client-Server + NATS as Broker
 - **Fully customizable**: 
   - timeouts and runtime limitations (buffer sizes, flush intervals, retries configuration),
   - schema & log formats
