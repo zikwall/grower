@@ -3,10 +3,7 @@ package filegrpc
 import (
 	"bufio"
 	"context"
-	"fmt"
 	"os"
-	"os/exec"
-	"path"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -20,17 +17,17 @@ import (
 	"github.com/zikwall/grower/protobuf/filebuf"
 )
 
-type FileBufferClient struct {
+type Client struct {
 	*drop.Impl
 	worker *ClientWorker
 }
 
-func NewClient(ctx context.Context, opt *ClientOpt) (*FileBufferClient, error) {
+func NewClient(ctx context.Context, opt *ClientOpt) (*Client, error) {
 	worker, err := NewClientWorker(opt)
 	if err != nil {
 		return nil, err
 	}
-	w := &FileBufferClient{
+	w := &Client{
 		Impl:   drop.NewContext(ctx),
 		worker: worker,
 	}
@@ -39,8 +36,8 @@ func NewClient(ctx context.Context, opt *ClientOpt) (*FileBufferClient, error) {
 }
 
 // Run service
-func (w *FileBufferClient) Run(ctx context.Context) {
-	w.worker.runContext(ctx)
+func (c *Client) Run(ctx context.Context) {
+	c.worker.runContext(ctx)
 }
 
 type ClientWorker struct {
@@ -49,6 +46,7 @@ type ClientWorker struct {
 	opt      *ClientOpt
 	client   filebuf.FileBufferServiceClient
 	conn     *grpc.ClientConn
+	rotate   fileio.Rotator
 	isClosed uint32
 	senders  uint32
 }
@@ -58,13 +56,24 @@ func NewClientWorker(opt *ClientOpt) (*ClientWorker, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &ClientWorker{
+	w := &ClientWorker{
 		wg:     &sync.WaitGroup{},
 		opt:    opt,
 		str:    make(chan string),
 		client: filebuf.NewFileBufferServiceClient(conn),
 		conn:   conn,
-	}, nil
+	}
+	w.rotate = fileio.New(
+		opt.SourceLogFile,
+		opt.LogsDir,
+		opt.BackupFiles,
+		opt.BackupFileMaxAge,
+		opt.AutoCreateTargetFromScratch,
+		opt.EnableRotating,
+		opt.SkipNginxReopen,
+		w.handleFile,
+	)
+	return w, nil
 }
 
 func (w *ClientWorker) Drop() error {
@@ -81,7 +90,7 @@ func (w *ClientWorker) DropMsg() string {
 }
 
 // prepareClientWorkerPool create worker pool for handling parsed rows
-func (w *ClientWorker) prepareClientWorkerPool(ctx context.Context) {
+func (w *ClientWorker) preparePool(ctx context.Context) {
 	for i := 1; i <= w.opt.Parallelism; i++ {
 		w.wg.Add(1)
 		go w.makeSender(ctx, i)
@@ -128,7 +137,7 @@ func (w *ClientWorker) makeSender(ctx context.Context, worker int) {
 
 // runContext main loop for read and rotating logs
 func (w *ClientWorker) runContext(ctx context.Context) {
-	w.prepareClientWorkerPool(ctx)
+	w.preparePool(ctx)
 	// run it only if and only if there is at least one writer on the server,
 	// otherwise a deadlock may occur
 	if atomic.LoadUint32(&w.senders) > 0 {
@@ -142,14 +151,18 @@ func (w *ClientWorker) runContext(ctx context.Context) {
 				log.Info("stop rotate worker")
 			}()
 			if w.opt.RunAtStartup {
-				w.timeHasComeRotate()
+				if err := w.rotate.Rotate(); err != nil {
+					log.Warning(err)
+				}
 			}
 			for {
 				select {
 				case <-ctx.Done():
 					return
 				case <-ticker.C:
-					w.timeHasComeRotate()
+					if err := w.rotate.Rotate(); err != nil {
+						log.Warning(err)
+					}
 				}
 			}
 		}()
@@ -158,67 +171,13 @@ func (w *ClientWorker) runContext(ctx context.Context) {
 	}
 }
 
-// timeHasComeRotate function starts processing log file, and then deletes outdated logs
-func (w *ClientWorker) timeHasComeRotate() {
-	if w.opt.AutoCreateTargetFromScratch {
-		// only for local development mode, each cyclo create new access.log from scratch
-		// will be removed in future
-		fileio.FromScratch(w.opt.SourceLogFile, w.opt.LogsDir)
-		log.Info("access.log will be generated from scratch")
-	}
-	if err := w.handleFile(w.opt.LogsDir, w.opt.SourceLogFile); err != nil {
-		log.Warning(err)
-	}
-	// if rotation option is enabled, we delete outdated log files
-	if w.opt.EnableRotating {
-		err := fileio.DeleteOutdatedBackupFiles(
-			w.opt.SourceLogFile,
-			w.opt.LogsDir,
-			w.opt.BackupFiles,
-			w.opt.BackupFileMaxAge,
-		)
-		if err != nil {
-			log.Warning(err)
-		}
-	}
-}
-
 // handleFile rotate target file and handle all rows
-func (w *ClientWorker) handleFile(dir, file string) error {
-	oldFilepath := path.Join(dir, file)
-	if err := fileio.CheckFile(oldFilepath); err != nil {
-		return err
-	}
-	newFilepath := path.Join(dir, fileio.BuildGrowerLogName(file))
-	if err := os.Rename(oldFilepath, newFilepath); err != nil {
-		return fmt.Errorf("failed to rotate file: %w", err)
-	}
-	if !w.opt.SkipNginxReopen {
-		// send command to nginx for reopen log file
-		if err := exec.Command("nginx", "-s", "reopen").Run(); err != nil {
-			return fmt.Errorf("failed to reopen nginx: %w", err)
-		}
-	}
-	f, err := os.OpenFile(newFilepath, os.O_RDONLY, 0o777)
-	if err != nil {
-		return fmt.Errorf("failed open log file: %w", err)
-	}
-	defer func() {
-		if err := f.Close(); err != nil {
-			log.Warning(err)
-		}
-		// if rotating doesn't enable, then just remove current index file
-		if !w.opt.EnableRotating {
-			if err := os.Remove(newFilepath); err != nil {
-				log.Warning(err)
-			}
-		}
-	}()
+func (w *ClientWorker) handleFile(file *os.File) error {
 	// Optionally, resize scanner's capacity for lines over 64K.
 	// Problem is Scanner.Scan() is limited in a 4096 []byte buffer size per line.
 	// We will get bufio.ErrTooLong error, which is bufio.Scanner: token too long if the line is too long.
 	// In which case, you'll have to use bufio.ReaderLine() or ReadString()
-	scanner := bufio.NewScanner(bufio.NewReader(f))
+	scanner := bufio.NewScanner(bufio.NewReader(file))
 	for scanner.Scan() {
 		w.send(scanner.Text())
 	}

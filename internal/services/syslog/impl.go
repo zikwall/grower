@@ -49,12 +49,12 @@ func New(ctx context.Context, opt *Opt) (*Syslog, error) {
 	if err != nil {
 		return nil, err
 	}
-	client := clickhousebuffer.NewClientWithOptions(ctx, ch, clickhousebuffer.DefaultOptions().
-		SetFlushInterval(opt.SyslogConfig.BufFlushInterval).
-		SetBatchSize(opt.SyslogConfig.BufSize).
-		SetDebugMode(opt.SyslogConfig.Debug).
-		SetRetryIsEnabled(true),
-	)
+	client := clickhousebuffer.NewClientWithOptions(ctx, ch, clickhousebuffer.NewOptions(
+		clickhousebuffer.WithFlushInterval(opt.SyslogConfig.BufFlushInterval),
+		clickhousebuffer.WithBatchSize(opt.SyslogConfig.BufSize),
+		clickhousebuffer.WithDebugMode(opt.SyslogConfig.Debug),
+		clickhousebuffer.WithRetry(true),
+	))
 	columns, scheme := opt.Config.Scheme.MapKeys()
 	s := &Syslog{
 		Impl:          drop.NewContext(ctx),
