@@ -35,12 +35,12 @@ func NewServer(ctx context.Context, opt *ServerOpt) (*Server, error) {
 	if err != nil {
 		return nil, err
 	}
-	client := clickhousebuffer.NewClientWithOptions(ctx, ch, clickhousebuffer.DefaultOptions().
-		SetFlushInterval(opt.BufFlushInterval).
-		SetBatchSize(opt.BufSize).
-		SetDebugMode(opt.Debug).
-		SetRetryIsEnabled(true),
-	)
+	client := clickhousebuffer.NewClientWithOptions(ctx, ch, clickhousebuffer.NewOptions(
+		clickhousebuffer.WithFlushInterval(opt.BufFlushInterval),
+		clickhousebuffer.WithBatchSize(opt.BufSize),
+		clickhousebuffer.WithDebugMode(opt.Debug),
+		clickhousebuffer.WithRetry(true),
+	))
 	s := &Server{
 		Impl:          drop.NewContext(ctx),
 		bufferWrapper: wrap.NewBufferWrapper(ch),

@@ -57,12 +57,12 @@ func New(ctx context.Context, opt *Opt) (*FileLog, error) {
 	if err != nil {
 		return nil, err
 	}
-	client := clickhousebuffer.NewClientWithOptions(ctx, ch, clickhousebuffer.DefaultOptions().
-		SetFlushInterval(opt.FileLogConfig.BufFlushInterval).
-		SetBatchSize(opt.FileLogConfig.BufSize).
-		SetDebugMode(opt.FileLogConfig.Debug).
-		SetRetryIsEnabled(true),
-	)
+	client := clickhousebuffer.NewClientWithOptions(ctx, ch, clickhousebuffer.NewOptions(
+		clickhousebuffer.WithFlushInterval(opt.FileLogConfig.BufFlushInterval),
+		clickhousebuffer.WithBatchSize(opt.FileLogConfig.BufSize),
+		clickhousebuffer.WithDebugMode(opt.FileLogConfig.Debug),
+		clickhousebuffer.WithRetry(true),
+	))
 	columns, scheme := opt.Config.Scheme.MapKeys()
 	f := &FileLog{
 		Impl:          drop.NewContext(ctx),
