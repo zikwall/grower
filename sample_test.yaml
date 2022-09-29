@@ -4,9 +4,21 @@ nginx:
   log_time_rewrite: true
   log_custom_casts_enable: true
   log_custom_casts:
-    custom_field: Integer
-    custom_time_field: Datetime
-  log_format: '$remote_addr - $remote_user [$time_local] "$request" $status $bytes_sent $request_time "$request_method" "$http_referer" "$http_user_agent" $https $custom_field <$custom_time_field>'
+    custom_field: Int32
+    custom_time_field: DateTime
+    field_uint8: UInt8
+    field_uint16: UInt16
+    field_uint32: UInt32
+    field_uint64: UInt64
+    field_int8: Int8
+    field_int16: Int16
+    field_int32: Int32
+    field_int64: Int64
+    field_f32: Float32
+    field_f64: Float64
+    field_fixed_string: FixedString(10)
+    field_date: Date
+  log_format: '$remote_addr - $remote_user [$time_local] "$request" $status $bytes_sent $request_time "$request_method" "$http_referer" "$http_user_agent" $https $custom_field <$custom_time_field> $field_uint8 $field_uint16 $field_uint32 $field_uint64 | $field_int8 $field_int16 $field_int32 $field_int64 | $field_f32 $field_f64 | $field_fixed_string | $field_date'
   log_remove_hyphen: true
 scheme:
   logs_table: only_tests.access_log
